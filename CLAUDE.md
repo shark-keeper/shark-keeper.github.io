@@ -92,12 +92,13 @@
 | API | 내용 |
 |---|---|
 | `GET /health` | 서버·DB 연결 확인 `{ok, db}` |
-| `GET /api/config` | 게임 설정값(`CFG`) |
+| `GET /api/config` | 게임 설정값(`CFG`) + `adsMode`(`test`/`ssv`) |
 | `POST /api/guest` | 게스트 플레이어 생성 → `{token, playerId}` |
 | `GET /api/me` | 내 정보 + 지금 상어(서버 시각으로 정산) + 떠난 상어 기록(최근 20) |
 | `POST /api/shark` `{name}` | 입양(이름 1~10자, 살아 있는 상어끼리 이름 중복 불가, 플레이어당 살아 있는 상어 1마리) |
 | `POST /api/shark/action` `{action}` | `feed`/`swim`/`pet`/`clean`. 응답: `ok`, `msg`(말풍선), `fx`(이모지), `fx2`(`pellets`/`blood`), `cls`(애니메이션), `toasts[]`, `effect`(악효과), `error`(`cooldown`+`cdLeftMs`, `dead`), `shark` |
-| `POST /api/shark/ad` | 광고 보상: 먹이 가득(한국 날짜 기준 하루 3회). **광고 시청 검증 없음(목업)** — 실제 광고를 붙일 때 광고사 서버 검증 추가 |
+| `POST /api/shark/ad` | 광고 보상(앱이 직접 보고): 먹이 가득(한국 날짜 기준 하루 3회). 광고 시청을 서버가 확인 못 하는 경로라 `ADS_MODE`가 `ssv`면 403 `ad_unverified` |
+| `GET /api/admob/ssv` | **AdMob 서버가 호출하는** 보상형 광고 서버 측 검증 콜백. 서명(ECDSA P-256, 구글 공개키 `verifier-keys.json`, 12시간 캐시)을 확인하고 `user_id`(=플레이어 ID)에게 지급, `transaction_id`로 중복 방지(`requests`에 `ssv_<tx>`). 서명이 틀리면 403, 맞으면 결과와 상관없이 200(구글 재전송 방지) |
 | `GET /api/rank?type=alive\|all` | 살아 있는 상어 / 플레이어별 역대 최고, 상위 50 + 토큰이 있으면 `me`(내 순위) |
 | `POST /api/import` `{shark, offsetMs}` | 브라우저(localStorage) 상어를 서버로 한 번 옮김. 값은 범위를 잘라서 받음(길이는 나이 대비 최대 성장량까지, 빨리 감기 시간은 되돌림) |
 
@@ -105,6 +106,15 @@
 - 저장: `GET` 조회는 정산 결과를 30분에 한 번만 DB에 쓴다(정산은 결정적이라 다시 계산해도 같음 — 무료 쓰기 한도 절약). 매시 7분 cron이 50분 넘게 갱신 안 된 상어를 정산해 랭킹 길이·사망을 반영하고, 2일 지난 `requests` 기록을 지운다.
 - 테이블: `players`(토큰 해시, 역대 최고, 광고 횟수), `sharks`(상태 JSON + 랭킹용 열 `alive`·`len`·`rank_off`, `version`), `requests`(중복 요청 응답 기록).
 - 로컬 테스트: `cd server && npm install && npx wrangler dev --local` (로컬 D1 사용). 크론은 `/__scheduled?cron=7+*+*+*+*`(`--test-scheduled`).
+
+## 광고 (AdMob 보상형, 2026-10-19 테스트 ID로 구현)
+
+- 흐름: 화면 [광고 보기] → 앱 안이면 `SharkAds.postMessage({type:'rewarded', reqId, userId})` → Flutter `lib/ads.dart`(`AdsService`)가 보상형 광고 재생(동의 UMP → SDK 초기화 → 광고 1개 미리 로드) → `window.__sharkAdResult({status: earned|dismissed|failed|busy, message, reqId})`. 웹 브라우저(앱 아님)는 3초 목업.
+- 지급: 지금 화면은 브라우저 저장소라 `grantAdReward()`가 로컬로 지급. 화면을 서버로 전환(④)할 때 `index.html`의 광고 보상 주석대로 바꾼다 — `ADS_MODE` `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 몇 번 다시 읽어 `player.ads.used` 증가 확인. 광고 요청에 `userId`=플레이어 ID 필수(SSV가 이 값으로 지급).
+- 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
+- 테스트 ID(구글 공개): 앱 ID는 `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`, setup이 AndroidManifest·Info.plist에 넣음), 보상형 광고 단위는 `flutter_app/lib/config.dart`(`kRewardedUnitAndroid`/`kRewardedUnitIos`). 안드로이드 minSdk 23 이상으로 맞춤.
+- **실제 광고로 바꿀 때 체크리스트**: ① AdMob 가입·앱 등록·보상형 광고 단위 생성 ② 위 4개 ID 교체 후 `dart run tool/setup.dart` 다시 실행 ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력 ④ `ADS_MODE`를 `ssv`로 ⑤ 저장소 루트에 `app-ads.txt`(AdMob이 알려 주는 한 줄) 추가 ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).
+- 웹 브라우저 광고 정책은 **미정**(웹 플레이를 막을지, 다른 방식으로 먹이를 보충할지 사용자가 검토 중). H5 Games Ads는 신청·승인이 필요하고 자체 도메인이 유리.
 
 ## 보안 원칙
 

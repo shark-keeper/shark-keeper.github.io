@@ -9,6 +9,12 @@ const kGameHost = 'shark-keeper.github.io';
 /// 브랜드명(가칭). 바꿀 때는 tool/setup.dart의 kDisplayName도 같이 바꾼다.
 const kAppTitle = '부캉이 키우기';
 
+/// AdMob 보상형 광고 단위 ID — 지금은 구글이 공개한 **테스트 ID**(실제 수익 없음, 계정 없이 동작).
+/// AdMob 가입 후 내 광고 단위 ID로 바꾸고, tool/setup.dart의 앱 ID도 함께 바꾼다.
+/// 실제 ID로 바꾼 뒤에는 서버 wrangler.jsonc의 ADS_MODE를 "ssv"로 바꿔 서버 검증으로만 보상을 준다.
+const kRewardedUnitAndroid = 'ca-app-pub-3940256099942544/5224354917';
+const kRewardedUnitIos = 'ca-app-pub-3940256099942544/1712485313';
+
 const kPageColor = Color(0xFFE7F6FD);
 const kSeaColor = Color(0xFF1B8FD6);
 const kInkColor = Color(0xFF0D3557);

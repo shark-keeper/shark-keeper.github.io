@@ -271,9 +271,9 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
 
 <div class="overlay" id="ovAd" hidden>
   <div class="sheet">
-    <h3>광고 재생 중</h3>
-    <p>프로토타입이라 실제 광고 대신 3초 대기로 대신해요.<br>완료 후 서버가 시청을 확인해야 보상이 지급되는 구조예요.</p>
-    <div class="bar" style="height:10px"><i id="adBar" style="width:0;background:var(--exe)"></i></div>
+    <h3 id="adTitle">광고 재생 중</h3>
+    <p id="adDesc">프로토타입이라 실제 광고 대신 3초 대기로 대신해요.<br>완료 후 서버가 시청을 확인해야 보상이 지급되는 구조예요.</p>
+    <div class="bar" id="adBarWrap" style="height:10px"><i id="adBar" style="width:0;background:var(--exe)"></i></div>
   </div>
 </div>
 
@@ -889,11 +889,35 @@ function showDeath(){
 }
 $('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
 
+/* ===== 광고 보상 =====
+   - 앱(Flutter) 안: 앱의 SharkAds 통로로 AdMob 보상형 광고를 요청하고, window.__sharkAdResult로 결과를 받는다.
+   - 웹 브라우저: 아직 정책 미정이라 3초 목업 유지.
+   지급(grantAdReward)은 지금 브라우저 저장소에 반영한다. 화면이 서버 API로 전환되면(다음 단계 ④) 여기서 서버 보상을 받는다:
+     서버 ADS_MODE가 'test'면 POST /api/shark/ad, 'ssv'면 AdMob이 서버로 직접 알려 주므로 /api/me를 몇 번 다시 읽어
+     player.ads.used가 늘었는지 확인한다. 광고 요청 때 userId=플레이어 ID, reqId=요청 ID를 넘긴다. */
+const inApp=()=>typeof window.SharkAds!=='undefined'&&window.SharkAds&&typeof window.SharkAds.postMessage==='function';
+let adPending=null, adTimer=null;
+function grantAdReward(){ settle(); S.ads.used++; S.shark.food=CFG.food.max; S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${CFG.food.max}개 가득 충전!`); render(); }
+function adSheet(title,desc,bar){ $('adTitle').textContent=title; $('adDesc').textContent=desc; $('adBarWrap').hidden=!bar; $('ovAd').hidden=false; }
+window.__sharkAdResult=r=>{
+  if(!r||!adPending||r.reqId!==adPending) return;
+  adPending=null; clearTimeout(adTimer); $('ovAd').hidden=true;
+  if(r.status==='earned') grantAdReward();
+  else { if(r.message) toast(r.message); render(); }
+};
 $('adBtn').onclick=()=>{
-  if(S.ads.used>=CFG.adDaily||!S.shark||S.shark.food>=CFG.food.max) return;
-  $('ovAd').hidden=false; const bar=$('adBar'); bar.style.transition='none'; bar.style.width='0';
+  if(adPending||S.ads.used>=CFG.adDaily||!S.shark||S.shark.food>=CFG.food.max) return;
+  if(inApp()){
+    adPending='ad_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    adSheet('광고 불러오는 중…','광고를 끝까지 보면 먹이가 가득 채워져요.',false);
+    window.SharkAds.postMessage(JSON.stringify({type:'rewarded',reqId:adPending,userId:S.playerId||''}));
+    adTimer=setTimeout(()=>{ if(adPending){ adPending=null; $('ovAd').hidden=true; toast('광고 응답이 없어요. 잠시 후 다시 시도해 주세요'); } },90000);
+    return;
+  }
+  adSheet('광고 재생 중','프로토타입이라 실제 광고 대신 3초 대기로 대신해요.',true);
+  const bar=$('adBar'); bar.style.transition='none'; bar.style.width='0';
   requestAnimationFrame(()=>requestAnimationFrame(()=>{ bar.style.transition='width 3s linear'; bar.style.width='100%'; }));
-  setTimeout(()=>{ $('ovAd').hidden=true; settle(); S.ads.used++; S.shark.food=CFG.food.max; S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${CFG.food.max}개 가득 충전!`); render(); },3050);
+  setTimeout(()=>{ $('ovAd').hidden=true; grantAdReward(); },3050);
 };
 
 document.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>{ S.offsetMs+=(+b.dataset.skip)*36e5; settle(); render(); say(`${b.dataset.skip}시간이 흘렀어요`); });

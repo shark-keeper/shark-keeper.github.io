@@ -5,6 +5,7 @@
    ========================================================= */
 import { CFG, ACTIONS, newShark, settle, act, adRefill, daysAlive, cdLeft, foodLeft, stageOf, growthPerDay } from './game.js';
 import { ensureSchema } from './schema.js';
+import { verifyAdmobSsv } from './admob.js';
 
 const ALLOWED_ORIGINS = ['https://shark-keeper.github.io'];
 const DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;   // 로컬 개발용
@@ -182,6 +183,24 @@ function sanitizeImport(src, offsetMs, t) {
 }
 
 /* ---------- 라우트 ---------- */
+/* 광고 보상 지급 공통: 하루 adDaily회(한국 날짜 기준), 먹이가 가득 차 있으면 지급하지 않음.
+   reqKey가 같으면 한 번만 처리(앱 reqId 또는 'ssv_'+AdMob transaction_id) */
+function grantAd(env, p, reqKey) {
+  return mutate(env, p, reqKey, async (row, t) => {
+    if (!row) throw new HttpError(404, 'no_shark', '키우는 상어가 없어요');
+    settle(row.sh, t);
+    if (!row.sh.alive) return { write: true, body: { ok: false, error: 'dead', now: t, shark: sharkView(row, t) } };
+    const fresh = await env.DB.prepare('SELECT ad_day, ad_used FROM players WHERE id = ?').bind(p.id).first();
+    const day = kstDay(t), used = fresh.ad_day === day ? fresh.ad_used : 0;
+    if (used >= CFG.adDaily) return { write: false, body: { ok: false, error: 'ad_limit', msg: '오늘 광고 보상을 다 받았어요', now: t, shark: sharkView(row, t) } };
+    if (row.sh.food >= CFG.food.max) return { write: false, body: { ok: false, error: 'food_full', msg: '먹이가 이미 가득 차 있어요', now: t, shark: sharkView(row, t) } };
+    adRefill(row.sh, t);
+    return { write: true,
+      extra: [env.DB.prepare('UPDATE players SET ad_day = ?, ad_used = ? WHERE id = ?').bind(day, used + 1, p.id)],
+      body: { ok: true, msg: `먹이 ${CFG.food.max}개 가득 충전!`, fx: '🐟', now: t, ads: { used: used + 1, left: CFG.adDaily - used - 1, daily: CFG.adDaily }, shark: sharkView(row, t) } };
+  });
+}
+
 async function handle(req, env) {
   const url = new URL(req.url);
   const route = `${req.method} ${url.pathname.replace(/\/+$/, '') || '/'}`;
@@ -191,7 +210,7 @@ async function handle(req, env) {
     try { db = (await env.DB.prepare('SELECT 1 AS ok').first('ok')) === 1; } catch (e) { db = false; }
     return { ok: true, service: 'shark-keeper-api', db, time: Date.now() };
   }
-  if (route === 'GET /api/config') return { ok: true, config: CFG };
+  if (route === 'GET /api/config') return { ok: true, config: CFG, adsMode: env.ADS_MODE || 'test' };
 
   await ensureSchema(env);
 
@@ -248,23 +267,32 @@ async function handle(req, env) {
     });
   }
 
-  // 광고 보상: 먹이 가득 충전 (하루 adDaily회, 한국 날짜 기준) { reqId? }
-  // ※ 지금은 광고 시청을 검증하지 않는다(목업). 실제 광고를 붙일 때 광고사의 서버 검증(SSV)을 넣는다.
+  // 광고 보상(앱이 직접 알림): 먹이 가득 충전 { reqId? }
+  // ※ 광고 시청을 서버가 확인하지 못하는 경로. ADS_MODE가 'ssv'면 막고, AdMob 서버 검증(/api/admob/ssv)으로만 지급한다.
+  //   ADS_MODE 'test'(기본): 테스트 광고 ID·웹 목업용으로 허용 — 테스트 광고 단위는 SSV 콜백을 보내지 않기 때문.
   if (route === 'POST /api/shark/ad') {
     const p = await auth(req, env); const b = await readBody(req); const reqId = reqIdOf(b);
-    return mutate(env, p, reqId, async (row, t) => {
-      if (!row) throw new HttpError(404, 'no_shark', '키우는 상어가 없어요');
-      settle(row.sh, t);
-      if (!row.sh.alive) return { write: true, body: { ok: false, error: 'dead', now: t, shark: sharkView(row, t) } };
-      const fresh = await env.DB.prepare('SELECT ad_day, ad_used FROM players WHERE id = ?').bind(p.id).first();
-      const day = kstDay(t), used = fresh.ad_day === day ? fresh.ad_used : 0;
-      if (used >= CFG.adDaily) return { write: false, body: { ok: false, error: 'ad_limit', msg: '오늘 광고 보상을 다 받았어요', now: t, shark: sharkView(row, t) } };
-      if (row.sh.food >= CFG.food.max) return { write: false, body: { ok: false, error: 'food_full', msg: '먹이가 이미 가득 차 있어요', now: t, shark: sharkView(row, t) } };
-      adRefill(row.sh, t);
-      return { write: true,
-        extra: [env.DB.prepare('UPDATE players SET ad_day = ?, ad_used = ? WHERE id = ?').bind(day, used + 1, p.id)],
-        body: { ok: true, msg: `먹이 ${CFG.food.max}개 가득 충전!`, fx: '🐟', now: t, ads: { used: used + 1, left: CFG.adDaily - used - 1, daily: CFG.adDaily }, shark: sharkView(row, t) } };
-    });
+    if ((env.ADS_MODE || 'test') === 'ssv') throw new HttpError(403, 'ad_unverified', '광고 보상은 광고 서버 확인 후 지급돼요');
+    return grantAd(env, p, reqId);
+  }
+
+  // AdMob 보상형 광고 서버 측 검증(SSV) 콜백 — AdMob 서버가 호출한다(브라우저·앱이 아님)
+  // user_id = 플레이어 ID, transaction_id로 중복 지급을 막는다. 처리 결과와 상관없이 서명이 맞으면 200을 돌려준다
+  // (200이 아니면 구글이 최대 5번 다시 보낸다).
+  if (route === 'GET /api/admob/ssv') {
+    const v = await verifyAdmobSsv(url.search);
+    if (!v.ok) throw new HttpError(403, 'ssv_' + v.reason);
+    const { user_id: uid, transaction_id: tx } = v.params;
+    if (!uid || !tx) return { ok: false, error: 'no_user' };          // AdMob 콘솔의 "확인" 테스트 요청 등
+    const p = await env.DB.prepare('SELECT * FROM players WHERE id = ?').bind(uid).first();
+    if (!p) return { ok: false, error: 'no_player' };
+    try {
+      const r = await grantAd(env, p, 'ssv_' + tx.slice(0, 56));
+      return { ok: r.ok, error: r.error };
+    } catch (e) {
+      if (e instanceof HttpError && e.status < 500) return { ok: false, error: e.code };   // 상어 없음 등: 다시 보내도 소용없음
+      throw e;
+    }
   }
 
   // 랭킹 ?type=alive(지금 살아 있는 상어) | all(플레이어별 역대 최고) — 토큰이 있으면 내 순위도 함께

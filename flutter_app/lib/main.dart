@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'ads.dart';
 import 'config.dart';
 
 void main() {
@@ -16,6 +19,7 @@ void main() {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
   runApp(const BukangApp());
+  AdsService.instance.init(); // 동의 확인 → 광고 SDK 초기화 → 광고 미리 불러 두기
 }
 
 class BukangApp extends StatelessWidget {
@@ -55,6 +59,9 @@ class _GameScreenState extends State<GameScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(kPageColor)
       ..enableZoom(false)
+      // 웹 게임 ↔ 앱 광고 통로: 웹이 SharkAds.postMessage('{"type":"rewarded","reqId":…,"userId":…}')를 보내면
+      // 앱이 보상형 광고를 재생하고 window.__sharkAdResult({status, message, reqId})로 결과를 돌려준다.
+      ..addJavaScriptChannel('SharkAds', onMessageReceived: (m) => _onAdMessage(m.message))
       ..setNavigationDelegate(NavigationDelegate(
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
@@ -78,6 +85,23 @@ class _GameScreenState extends State<GameScreen> {
         },
       ))
       ..loadRequest(Uri.parse(kGameUrl));
+  }
+
+  Future<void> _onAdMessage(String raw) async {
+    Map<String, dynamic> msg;
+    try {
+      msg = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    if (msg['type'] != 'rewarded') return;
+    final reqId = '${msg['reqId'] ?? ''}';
+    final r = await AdsService.instance.showRewarded(
+      userId: msg['userId'] as String?,
+      customData: reqId.isEmpty ? null : reqId,
+    );
+    final payload = jsonEncode({...r.toJson(), 'reqId': reqId});
+    await _web.runJavaScript('window.__sharkAdResult && window.__sharkAdResult($payload)');
   }
 
   void _retry() {

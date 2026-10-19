@@ -39,6 +39,12 @@ flutter test         # 링크 처리 규칙 테스트
 | 오프라인 | 한 번 접속한 뒤에는 웹의 서비스 워커 캐시로 열린다. 캐시도 없으면 "다시 시도" 화면 |
 | 앱 복귀 | 웹이 `visibilitychange`에서 지난 시간을 바로 정산 |
 
+## 광고 (AdMob 보상형)
+
+- `lib/ads.dart`가 보상형 광고를 재생한다. 웹 게임이 `SharkAds` 통로로 요청하면 광고를 띄우고 결과를 웹에 돌려준다.
+- **지금은 구글 공개 테스트 ID**라 실제 수익 없이 "Test Ad" 광고가 나온다. 바꾸는 곳: 광고 단위 `lib/config.dart`, 앱 ID `tool/setup.dart`(바꾼 뒤 `dart run tool/setup.dart` 다시 실행).
+- 실제 ID로 바꿀 때 체크리스트는 저장소 루트 `CLAUDE.md`의 "광고" 절 참고(서버 검증 URL, `ADS_MODE`, `app-ads.txt`, 스토어 연결).
+
 ### 알아둘 점
 
 - **저장 데이터는 앱과 브라우저가 따로**입니다. 지금 게임은 기기 localStorage에 저장하므로,

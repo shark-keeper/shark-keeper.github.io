@@ -7,6 +7,11 @@ const kOrg = 'io.github'; // → 앱 ID: io.github.sharkkeeper (스토어 출시
 const kProjectName = 'sharkkeeper';   // 밑줄 없이: iOS 번들 ID와 안드로이드 앱 ID가 똑같이 io.github.sharkkeeper가 된다
 const kDisplayName = '부캉이'; // 홈 화면 아이콘 아래 표시되는 이름
 
+// AdMob 앱 ID — 지금은 구글 공개 **테스트 앱 ID**. AdMob 가입 후 내 앱 ID로 바꾸고 이 스크립트를 다시 실행한다.
+// (광고 단위 ID는 lib/config.dart의 kRewardedUnitAndroid / kRewardedUnitIos)
+const kAdmobAppIdAndroid = 'ca-app-pub-3940256099942544~3347511713';
+const kAdmobAppIdIos = 'ca-app-pub-3940256099942544~1458002511';
+
 Future<void> run(String cmd, List<String> args) async {
   stdout.writeln('\n▶ $cmd ${args.join(' ')}');
   final p = await Process.start(cmd, args, runInShell: true, mode: ProcessStartMode.inheritStdio);
@@ -52,14 +57,46 @@ Future<void> main() async {
       s = s.replaceFirst('<application',
           '<uses-permission android:name="android.permission.INTERNET"/>\n    <application');
     }
+    // AdMob 앱 ID (있으면 값만 바꾼다)
+    final meta = RegExp(r'<meta-data\s+android:name="com\.google\.android\.gms\.ads\.APPLICATION_ID"\s+android:value="[^"]*"\s*/>');
+    final tag = '<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="$kAdmobAppIdAndroid"/>';
+    if (meta.hasMatch(s)) {
+      s = s.replaceFirst(meta, tag);
+    } else {
+      s = s.replaceFirstMapped(RegExp(r'<application[^>]*>'), (m) => '${m[0]}\n        $tag');
+    }
     return s;
-  }, 'Android 앱 이름·인터넷 권한');
+  }, 'Android 앱 이름·인터넷 권한·AdMob 앱 ID');
+
+  // google_mobile_ads는 안드로이드 6.0(API 23) 이상이 필요하다
+  for (final path in ['android/app/build.gradle.kts', 'android/app/build.gradle']) {
+    if (!File(path).existsSync()) continue;
+    patch(path, (s) => s
+        .replaceAll('minSdk = flutter.minSdkVersion', 'minSdk = maxOf(flutter.minSdkVersion, 23)')
+        .replaceAll('minSdkVersion flutter.minSdkVersion', 'minSdkVersion Math.max(flutter.minSdkVersion, 23)'),
+      'Android 최소 버전 API 23 이상');
+  }
 
   patch('ios/Runner/Info.plist', (s) {
     return s.replaceFirstMapped(
         RegExp(r'(<key>CFBundleDisplayName</key>\s*<string>)[^<]*(</string>)'),
         (m) => '${m[1]}$kDisplayName${m[2]}');
   }, 'iOS 앱 이름');
+
+  patch('ios/Runner/Info.plist', (s) {
+    final idRe = RegExp(r'(<key>GADApplicationIdentifier</key>\s*<string>)[^<]*(</string>)');
+    if (idRe.hasMatch(s)) return s.replaceFirstMapped(idRe, (m) => '${m[1]}$kAdmobAppIdIos${m[2]}');
+    // 앱 ID + 구글 광고 네트워크 식별자(SKAdNetwork)
+    return s.replaceFirst(RegExp(r'</dict>\s*</plist>\s*$'), '''\t<key>GADApplicationIdentifier</key>
+\t<string>$kAdmobAppIdIos</string>
+\t<key>SKAdNetworkItems</key>
+\t<array>
+\t\t<dict><key>SKAdNetworkIdentifier</key><string>cstr6suwn9.skadnetwork</string></dict>
+\t</array>
+</dict>
+</plist>
+''');
+  }, 'iOS AdMob 앱 ID');
 
   await run('flutter', ['pub', 'get']);
   await run('dart', ['run', 'flutter_launcher_icons']);

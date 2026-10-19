@@ -28,7 +28,7 @@
 - 밸런스 값은 **서버(`server/src/game.js`의 `CFG`) 한 곳에만** 있다. 화면(`index.html`)은 시작할 때 `GET /api/config`로 받아 `CFG`에 넣고(4초 제한), 받은 값을 localStorage `shark-keeper-cfg`에 보관해 서버에 닿지 않으면 그 값으로 실행한다. 보관값도 없으면 "바다에 연결하지 못했어요" 안내(`#ovCfg`, 다시 시도). `index.html`의 `DEFAULTS`에는 화면 전용 값(`brandName`)만, `API_BASE`는 서버 주소. 관리자 탭은 제거했고 브라우저의 옛 설정(`S.cfg`)은 무시하고 지운다.
 - UI 문구는 한국어. 모바일 세로 화면 우선, 밝은 바다 블루 톤.
 - 커밋 작성자는 `Claude <noreply@anthropic.com>`.
-- push 후 https://shark-keeper.github.io/ 를 열어 반영됐는지 확인한다.
+- push 후 https://shark-keeper.github.io/?source=app 을 열어 반영됐는지 확인한다(주소에 `?source=app`이 없으면 웹 차단 화면이 나온다).
 
 ## 현재 게임 규칙 (`server/src/game.js`의 `CFG`)
 
@@ -114,7 +114,7 @@
 - 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
 - 테스트 ID(구글 공개): 앱 ID는 `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`, setup이 AndroidManifest·Info.plist에 넣음), 보상형 광고 단위는 `flutter_app/lib/config.dart`(`kRewardedUnitAndroid`/`kRewardedUnitIos`). 안드로이드 minSdk 23 이상으로 맞춤.
 - **실제 광고로 바꿀 때 체크리스트**: ① AdMob 가입·앱 등록·보상형 광고 단위 생성 ② 위 4개 ID 교체 후 `dart run tool/setup.dart` 다시 실행 ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력 ④ `ADS_MODE`를 `ssv`로 ⑤ 저장소 루트에 `app-ads.txt`(AdMob이 알려 주는 한 줄) 추가 ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).
-- 웹 브라우저 광고 정책은 **미정**(웹 플레이를 막을지, 다른 방식으로 먹이를 보충할지 사용자가 검토 중). H5 Games Ads는 신청·승인이 필요하고 자체 도메인이 유리.
+- **웹 브라우저 플레이는 막는다**(2026-10-19 결정, 광고 수익을 앱으로 모으기 위해): `index.html`의 `IS_APP`(앱 통로 `SharkAds`가 있거나 주소에 `?source=app`)이 아니면 `boot()`가 게임을 시작하지 않고 "앱에서 만나요!" 화면(`#ovWeb`, 스토어 버튼)을 띄운다. 스토어 주소는 `STORE_URLS`(비어 있으면 '준비 중'). 화면 쪽 차단이라 `?source=app`을 직접 붙이면 브라우저에서도 열린다 — 개발·테스트는 이 주소로 한다. 나중에 웹을 다시 열면 H5 Games Ads(신청·승인, 자체 도메인 유리) 검토.
 
 ## 보안 원칙
 

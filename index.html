@@ -171,10 +171,14 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
 .sheet input{width:calc(100% - 6px);font:inherit;font-size:14px;padding:10px 12px;border:0;box-shadow:var(--pxb2);--bc:var(--ink-soft);text-align:center;margin:2px 3px 14px}
 .sheet input:focus{outline:none;--bc:var(--sea-deep)}
 .pxbig{line-height:0;display:flex;justify-content:center}
-#startShark{display:flex;justify-content:center}
+#startShark,#webShark{display:flex;justify-content:center}
 .big{width:calc(100% - 6px);margin:0 3px;background:var(--accent);color:#fff;font-family:var(--f-display);font-weight:700;font-size:22px;padding:11px;--bc:var(--accent-dk);box-shadow:var(--pxb),0 6px 0 0 var(--drop)}
 .big:active{transform:translateY(3px);box-shadow:var(--pxb),0 3px 0 0 var(--drop)}
 .err{color:var(--bad);font-size:13px;min-height:18px;margin:-6px 0 8px}
+.overlay.solid{background:linear-gradient(180deg,var(--sea-top) 0 25%,#4cc2ef 25% 50%,#36ade6 50% 75%,#2a9de0 75%)}
+.stores{display:grid;gap:14px;margin:4px 3px 0}
+.stores a,.stores span{display:block;padding:10px;font-family:var(--f-display);font-weight:700;font-size:14px;text-decoration:none;color:#fff;background:var(--ink);--bc:#061a2c;box-shadow:var(--pxb),0 6px 0 0 var(--drop)}
+.stores span{background:#9fb3c4;--bc:#7d93a8;color:#f4f8fb;box-shadow:var(--pxb)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
 </style>
 </head>
@@ -269,6 +273,16 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
   </div>
 </div>
 
+<div class="overlay solid" id="ovWeb" hidden>
+  <div class="sheet">
+    <div id="webShark"></div>
+    <h3 id="webTitle">앱에서 만나요!</h3>
+    <p>상어 키우기는 이제 <b>앱에서만</b> 할 수 있어요.<br>Google Play와 App Store에 곧 나와요.</p>
+    <div class="stores" id="webStores"></div>
+    <p class="note" style="margin:14px 0 0">앱이 나오면 이 화면의 버튼으로 바로 설치할 수 있어요.</p>
+  </div>
+</div>
+
 <div class="overlay" id="ovAd" hidden>
   <div class="sheet">
     <h3 id="adTitle">광고 재생 중</h3>
@@ -287,6 +301,11 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
 const DEFAULTS = {
   brandName: '부캉이 키우기',
 };
+/* 웹 브라우저에서는 플레이를 막고 앱 설치를 안내한다(2026-10-19 결정 — 광고 수익을 앱으로 모으기 위해).
+   앱(Flutter WebView)은 SharkAds 통로가 있거나 주소에 ?source=app이 붙어 있다.
+   ※ 화면 쪽 차단이라 주소에 ?source=app을 직접 붙이면 브라우저에서도 열린다(개발·테스트용으로도 이 방법을 쓴다). */
+const IS_APP = typeof window.SharkAds!=='undefined' || new URLSearchParams(location.search).get('source')==='app';
+const STORE_URLS = { android: '', ios: '' };   // 출시하면 스토어 주소를 넣는다 (비어 있으면 '준비 중')
 const API_BASE = 'https://shark-keeper-api.shark-keeper.workers.dev';
 const CFG_KEY = 'shark-keeper-cfg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -960,7 +979,14 @@ function showCfgError(){
 
 /* boot */
 bubbles();
+function showWebOnly(){
+  $('webShark').innerHTML=sharkSVG(1,'ok',168);
+  $('webStores').innerHTML=[['android','Google Play'],['ios','App Store']].map(([k,n])=>STORE_URLS[k]
+    ? `<a href="${STORE_URLS[k]}" target="_blank" rel="noopener">${n}에서 받기</a>` : `<span>${n} · 준비 중</span>`).join('');
+  $('ovWeb').hidden=false;
+}
 async function boot(){
+  if(!IS_APP) return showWebOnly();
   CFG=await loadConfig();
   if(!CFG) return showCfgError();
   if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }

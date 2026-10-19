@@ -31,7 +31,8 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/icon/app-icon-1024.png
+  image_path: assets/icon/app-icon-1024.png            # iOS(App Store 1024 포함): 꽉 찬 네모, 투명 없음
+  image_path_android: assets/icon/app-icon-android-legacy.png   # 안드로이드 7.1 이하: 계단 모서리
   remove_alpha_ios: true
   adaptive_icon_foreground: assets/icon/adaptive-foreground.png
   adaptive_icon_background: assets/icon/adaptive-background.png

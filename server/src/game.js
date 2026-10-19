@@ -9,8 +9,11 @@
 export const CFG = Object.freeze({
   startLen: 30, maxDailyGrowth: 3, sizeDamp: 250, noGrowthBelowSatiety: 10,
   decayPerH: { satiety: 4.2, exercise: 3.4, affection: 3.0 },
+  // 몸집 단계(stages)별 배부름 감소 배율: 클수록 빨리 배고파진다
+  satietyStageMul: [1, 1.15, 1.3, 1.45],
   poopEveryH: 1.5, poopMax: 5, poopAffDecay: 0.6, poopGrowthPenaltyPct: 8,
   poopSickMul: 2,
+  poopSatietyCost: 2,   // 똥이 1개 생길 때마다 배부름 감소(소화)
   poopGainMul: 0.5,
   illness: { name: '병', poopAt: 4, petsToCure: 5, cureAffection: 30, deathH: 18, extendHPerProg: 2,
     hungerBelow: 10, hungerH: 3, cureSatiety: 30 },
@@ -84,9 +87,9 @@ export function regenFood(sh, t) {
 export const foodLeft = (sh, t) => sh.food >= CFG.food.max ? 0 : Math.max(0, sh.foodT + CFG.food.regenMin * 6e4 - t);
 
 export function tick(sh, h, at) {
-  const d = CFG.decayPerH;
+  const d = CFG.decayPerH, satMul = (CFG.satietyStageMul || [])[stageOf(sh.len)] ?? 1;
   sh.len += growthPerDay(sh) / 24 * h;
-  sh.satiety = clamp(sh.satiety - d.satiety * h);
+  sh.satiety = clamp(sh.satiety - d.satiety * satMul * h);
   sh.exercise = clamp(sh.exercise - d.exercise * h);
   sh.affection = clamp(sh.affection - (d.affection + CFG.poopAffDecay * sh.poop) * h);
   const segFrom = at - h * 36e5;
@@ -98,7 +101,7 @@ export function tick(sh, h, at) {
   sh.poopT += h + sickH * (CFG.poopSickMul - 1);
   while (sh.poopT >= CFG.poopEveryH) {
     sh.poopT -= CFG.poopEveryH;
-    if (sh.poop < CFG.poopMax && sh.satiety > 5) { sh.poop++; if (sh.poop >= CFG.illness.poopAt && !sh.ill) startIll(sh, at, 'poop'); }
+    if (sh.poop < CFG.poopMax && sh.satiety > 5) { sh.poop++; sh.satiety = clamp(sh.satiety - (CFG.poopSatietyCost || 0)); if (sh.poop >= CFG.illness.poopAt && !sh.ill) startIll(sh, at, 'poop'); }
   }
   sh.lowSatH = sh.satiety < CFG.illness.hungerBelow ? (sh.lowSatH || 0) + h : 0;
   if (sh.lowSatH >= CFG.illness.hungerH && !sh.ill) startIll(sh, at, 'hunger');

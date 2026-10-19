@@ -343,9 +343,9 @@ function regenFood(sh){
 const foodLeft=sh=>sh.food>=CFG.food.max?0:Math.max(0,sh.foodT+CFG.food.regenMin*6e4-now());
 function bumpBest(sh){ if(sh.len>S.bestLen){ S.bestLen=sh.len; S.bestName=sh.name; S.bestDays=daysAlive(sh); } }
 function tick(sh,h,at){
-  const d=CFG.decayPerH;
+  const d=CFG.decayPerH, satMul=(CFG.satietyStageMul||[])[stageOf(sh.len)]??1;   // 클수록 빨리 배고파진다
   sh.len += growthPerDay(sh)/24*h;
-  sh.satiety=clamp(sh.satiety-d.satiety*h);
+  sh.satiety=clamp(sh.satiety-d.satiety*satMul*h);
   sh.exercise=clamp(sh.exercise-d.exercise*h);
   sh.affection=clamp(sh.affection-(d.affection+CFG.poopAffDecay*sh.poop)*h);
   // 상태 이상: 이 구간과 겹치는 시간만큼 감소치를 서서히 뺀다
@@ -355,7 +355,7 @@ function tick(sh,h,at){
     if(o>0){ for(const k in A.rate) sh[k]=clamp(sh[k]-A.rate[k]*o); if(a==='feed') sickH=o/36e5; } }
   // 똥 타이머: 배탈 중에는 poopSickMul배 빠르게 흐른다 (5분 배탈 = 10분 진행)
   sh.poopT+=h+sickH*(CFG.poopSickMul-1);
-  while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5){ sh.poop++;
+  while(sh.poopT>=CFG.poopEveryH){ sh.poopT-=CFG.poopEveryH; if(sh.poop<CFG.poopMax&&sh.satiety>5){ sh.poop++; sh.satiety=clamp(sh.satiety-(CFG.poopSatietyCost||0));   // 소화
       if(sh.poop>=CFG.illness.poopAt&&!sh.ill) startIll(sh,at,'poop'); } }
   // 굶주림 병: 배부름이 기준 미만인 시간이 이어지면 (기준 이상이 되면 초기화)
   sh.lowSatH = sh.satiety<CFG.illness.hungerBelow ? (sh.lowSatH||0)+h : 0;
@@ -837,7 +837,7 @@ function renderRec(){
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
     먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
-    똥은 ${CFG.poopEveryH}시간마다 생기고, 배탈 중에는 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요. 배부름이 ${CFG.illness.hungerBelow} 아래로 ${CFG.illness.hungerH}시간 이어져도 ${CFG.illness.name}에 걸리는데, 이때는 배부름 ${CFG.illness.cureSatiety} 이상도 채워야 나아요. ${CFG.illness.deathH}시간 안에 낫지 못하면 떠나게 되지만, 치료 0.5번마다 버틸 시간이 ${CFG.illness.extendHPerProg/2}시간씩 늘어나요.<br><br>
+    똥은 ${CFG.poopEveryH}시간마다 생기고, 하나 쌀 때마다 배부름이 ${CFG.poopSatietyCost||0} 줄어요. 몸집이 클수록 배도 빨리 고파져요. 배탈 중에는 똥이 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요. 배부름이 ${CFG.illness.hungerBelow} 아래로 ${CFG.illness.hungerH}시간 이어져도 ${CFG.illness.name}에 걸리는데, 이때는 배부름 ${CFG.illness.cureSatiety} 이상도 채워야 나아요. ${CFG.illness.deathH}시간 안에 낫지 못하면 떠나게 되지만, 치료 0.5번마다 버틸 시간이 ${CFG.illness.extendHPerProg/2}시간씩 늘어나요.<br><br>
     수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}에 걸려요. 걸리면 ${CFG.effectDurMin}분 동안 상어 모습이 바뀌고 스탯이 서서히 떨어져요.`;
 }

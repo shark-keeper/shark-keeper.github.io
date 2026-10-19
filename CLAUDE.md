@@ -1,10 +1,10 @@
-# 부캉고치 (가칭 '부캉이 키우기') — 작업 안내
+# 상어집사 (프로젝트 별칭 '부캉고치', 옛 가칭 '부캉이 키우기') — 작업 안내
 
 다마고치형 상어 육성 모바일 웹게임. 엔딩 없이 몸길이(cm)로 경쟁한다.
 
 - 배포 주소: https://shark-keeper.github.io/ (예전 `bukanggochi.github.io`는 더 이상 쓰지 않는다 — 서버 CORS도 새 주소만 허용)
 - 저장소: `shark-keeper/shark-keeper.github.io` (GitHub Pages, `main` 브랜치 루트)
-- 게임 이름 '부캉이'는 상표 검토 전 가칭. 브랜드명은 `DEFAULTS.brandName` 한 곳에서 바꾼다.
+- 게임 이름은 **상어집사**(2026-10-20 '부캉이 키우기'에서 변경, 상표 검토 전). 화면 제목은 `DEFAULTS.brandName`. 저장소 키(`bukangi-proto-v2` 등)·앱 ID는 기존 저장 데이터·출시 호환을 위해 그대로 둔다.
 
 ## 파일 구조
 

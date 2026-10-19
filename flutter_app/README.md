@@ -1,4 +1,4 @@
-# 부캉이 키우기 — Flutter 앱 (WebView 래퍼)
+# 상어집사 — Flutter 앱 (WebView 래퍼)
 
 배포 중인 웹게임 <https://shark-keeper.github.io/> 을 앱 화면에 띄우는 Flutter 프로젝트입니다.
 게임 자체는 웹에서 업데이트되므로 **밸런스·디자인 변경은 앱을 다시 내지 않아도 바로 반영**됩니다.
@@ -16,7 +16,7 @@ dart run tool/setup.dart
 이 스크립트가 하는 일:
 
 1. `flutter create`로 `android/`, `ios/` 폴더 생성 (앱 ID `io.github.sharkkeeper`)
-2. 앱 이름을 `부캉이`로 설정, 안드로이드 릴리스 빌드에 인터넷 권한 추가
+2. 앱 이름을 `상어집사`로 설정, 안드로이드 릴리스 빌드에 인터넷 권한 추가
 3. 앱 아이콘(`flutter_launcher_icons`), 스플래시(`flutter_native_splash`) 생성
 
 생성된 `android/`, `ios/` 폴더는 커밋해 두세요.

@@ -46,6 +46,10 @@ const MIGRATIONS = [
       PRIMARY KEY (player_id, req_id)
     )`,
     `CREATE INDEX IF NOT EXISTS requests_created ON requests(created_at)`
+  ],
+  // v2: 광고 쿨타임 — 마지막 광고 보상 시각
+  [
+    `ALTER TABLE players ADD COLUMN ad_last INTEGER NOT NULL DEFAULT 0`
   ]
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;

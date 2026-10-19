@@ -87,9 +87,13 @@ function sharkView(row, t) {
   return { id: row.id, ...sh, stage: stageOf(sh.len), days: daysAlive(sh, t), growthPerDay: sh.alive ? growthPerDay(sh) : 0,
     cdLeftMs: cd, foodLeftMs: sh.alive ? foodLeft(sh, t) : 0 };
 }
+// 광고 상태: 쿨타임 남은 시간 + 오늘 본 횟수(통계용)
+function adsView(p, t) {
+  const cd = CFG.adCdMin * 6e4;
+  return { last: p.ad_last || 0, cdMin: CFG.adCdMin, food: CFG.adFood, leftMs: Math.max(0, (p.ad_last || 0) + cd - t), today: p.ad_day === kstDay(t) ? p.ad_used : 0 };
+}
 function playerView(p, t) {
-  const used = p.ad_day === kstDay(t) ? p.ad_used : 0;
-  return { id: p.id, best: { len: p.best_len, name: p.best_name, days: p.best_days }, ads: { used, left: Math.max(0, CFG.adDaily - used), daily: CFG.adDaily } };
+  return { id: p.id, best: { len: p.best_len, name: p.best_name, days: p.best_days }, ads: adsView(p, t) };
 }
 async function graves(env, playerId) {
   const { results } = await env.DB.prepare(`SELECT name, len, born, died_at, reason FROM sharks WHERE player_id = ? AND alive = 0
@@ -164,7 +168,7 @@ function sanitizeImport(src, offsetMs, t) {
   for (const k of ['satiety', 'exercise', 'affection']) sh[k] = num(src[k], 0, 100, sh[k]);
   sh.poop = Math.round(num(src.poop, 0, CFG.poopMax, 0));
   sh.poopT = num(src.poopT, 0, CFG.poopEveryH, 0);
-  sh.food = Math.round(num(src.food, 0, CFG.food.max, CFG.food.max));
+  sh.food = Math.round(num(src.food, 0, CFG.food.max + CFG.adFood - 1, CFG.food.max));   // 광고로 쌓인 먹이까지
   sh.foodT = tm(src.foodT, sh.lastSim);
   sh.starveH = num(src.starveH, 0, CFG.starveDeathH, 0);
   sh.zeroH = num(src.zeroH, 0, CFG.allZeroDeathH, 0);
@@ -183,21 +187,22 @@ function sanitizeImport(src, offsetMs, t) {
 }
 
 /* ---------- 라우트 ---------- */
-/* 광고 보상 지급 공통: 하루 adDaily회(한국 날짜 기준), 먹이가 가득 차 있으면 지급하지 않음.
+/* 광고 보상 지급 공통: 먹이 adFood개 추가(최대치를 넘어 쌓임). 먹이가 food.max개 미만일 때만, 마지막 광고 후 adCdMin분 쿨타임.
    reqKey가 같으면 한 번만 처리(앱 reqId 또는 'ssv_'+AdMob transaction_id) */
 function grantAd(env, p, reqKey) {
   return mutate(env, p, reqKey, async (row, t) => {
     if (!row) throw new HttpError(404, 'no_shark', '키우는 상어가 없어요');
     settle(row.sh, t);
     if (!row.sh.alive) return { write: true, body: { ok: false, error: 'dead', now: t, shark: sharkView(row, t) } };
-    const fresh = await env.DB.prepare('SELECT ad_day, ad_used FROM players WHERE id = ?').bind(p.id).first();
+    const fresh = await env.DB.prepare('SELECT ad_day, ad_used, ad_last FROM players WHERE id = ?').bind(p.id).first();
     const day = kstDay(t), used = fresh.ad_day === day ? fresh.ad_used : 0;
-    if (used >= CFG.adDaily) return { write: false, body: { ok: false, error: 'ad_limit', msg: '오늘 광고 보상을 다 받았어요', now: t, shark: sharkView(row, t) } };
-    if (row.sh.food >= CFG.food.max) return { write: false, body: { ok: false, error: 'food_full', msg: '먹이가 이미 가득 차 있어요', now: t, shark: sharkView(row, t) } };
+    const ads = adsView(fresh, t);
+    if (ads.leftMs > 0) return { write: false, body: { ok: false, error: 'ad_cooldown', msg: '다음 광고까지 조금 더 기다려 주세요', cdLeftMs: ads.leftMs, now: t, ads, shark: sharkView(row, t) } };
+    if (row.sh.food >= CFG.food.max) return { write: false, body: { ok: false, error: 'food_full', msg: `먹이가 ${CFG.food.max}개보다 적을 때 볼 수 있어요`, now: t, ads, shark: sharkView(row, t) } };
     adRefill(row.sh, t);
     return { write: true,
-      extra: [env.DB.prepare('UPDATE players SET ad_day = ?, ad_used = ? WHERE id = ?').bind(day, used + 1, p.id)],
-      body: { ok: true, msg: `먹이 ${CFG.food.max}개 가득 충전!`, fx: '🐟', now: t, ads: { used: used + 1, left: CFG.adDaily - used - 1, daily: CFG.adDaily }, shark: sharkView(row, t) } };
+      extra: [env.DB.prepare('UPDATE players SET ad_day = ?, ad_used = ?, ad_last = ? WHERE id = ?').bind(day, used + 1, t, p.id)],
+      body: { ok: true, msg: `먹이 ${CFG.adFood}개 충전!`, fx: '🐟', now: t, ads: adsView({ ad_last: t, ad_day: day, ad_used: used + 1 }, t), shark: sharkView(row, t) } };
   });
 }
 

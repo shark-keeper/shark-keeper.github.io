@@ -31,7 +31,9 @@ export const CFG = Object.freeze({
     pet:  { name: '손물림', chance: 6,  satiety: 0,  exercise: 0,  affection: 20, keepGain: false }
   },
   food: { max: 10, regenMin: 10 },
-  adDaily: 3,
+  // 광고 보상: 먹이 adFood개를 더해 준다(최대치를 넘어 쌓임). 먹이가 food.max개 미만일 때만 볼 수 있고,
+  // 마지막 광고 후 adCdMin분 쿨타임(먹이가 많아 못 보는 동안에도 쿨타임은 흐른다)
+  adFood: 10, adCdMin: 60,
   stages: [ [0,'아기'], [100,'성장기'], [200,'대형'], [300,'거대'] ]
 });
 
@@ -80,7 +82,7 @@ export function settle(sh, t) {
 export function regenFood(sh, t) {
   const F = CFG.food, iv = F.regenMin * 6e4;
   if (sh.food == null) { sh.food = F.max; sh.foodT = t; }
-  if (sh.food >= F.max) { sh.food = F.max; sh.foodT = t; return; }
+  if (sh.food >= F.max) { sh.foodT = t; return; }   // 최대치 이상(광고로 쌓인 먹이)이면 충전만 멈춘다 — 깎지 않음
   const n = Math.floor((t - sh.foodT) / iv);
   if (n > 0) { sh.food = Math.min(F.max, sh.food + n); sh.foodT = sh.food >= F.max ? t : sh.foodT + n * iv; }
 }
@@ -209,4 +211,4 @@ export function act(sh, a, t, rnd = Math.random) {
 }
 
 /* 광고 보상: 먹이를 최대치까지 채운다 */
-export function adRefill(sh, t) { sh.food = CFG.food.max; sh.foodT = t; }
+export function adRefill(sh, t) { sh.food += CFG.adFood; if (sh.food >= CFG.food.max) sh.foodT = t; }

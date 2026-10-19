@@ -36,7 +36,7 @@
 - 성장 효율 = `(0.2 + 0.8*평균/100) * (0.5 + 0.5*최소/100) * (1 - 똥개수*8%)`, 배부름 10 미만이면 성장 정지
 - 시간당 감소: 배부름 4.2 / 운동 3.4 / 애정 3.0. 오프라인 시간은 10분 단위 구간 시뮬레이션으로 정산
 - 배부름 감소는 몸집 단계별 배율(`satietyStageMul`): 아기 1.0 / 성장기 1.15 / 대형 1.3 / 거대 1.45 (단계는 그 구간 시작 시 몸길이 기준)
-- 먹이 충전(`CFG.food`): 최대 10개, 10개 미만이면 10분마다 1개 충전. 먹이 1회에 1개 소모, 쿨타임 없음
+- 먹이 충전(`CFG.food`): 10개 미만이면 10분마다 1개씩 10개까지 충전(10개 이상이면 충전 멈춤, 광고로 받은 먹이는 10개를 넘어 쌓임). 먹이 1회에 1개 소모, 쿨타임 없음
 - 행동: 먹이(배부름+10, 먹이 1개) / 수영(운동+10, 배부름-5) / 쓰다듬기(애정+10, 연속 시 감쇠, 3분, 시간당 6회) / 청소(똥 1개당 애정+5)
 - 수영 쿨타임: 첫 수영 후 45분, 수영할 때마다 1분씩 줄어 최소 5분 (상어별 수영 횟수 `sh.swimN`, 새 상어면 다시 45분부터)
 - 똥: 1.5시간마다 생성(상어 나이 기준 타이머, 청소해도 초기화 안 됨), 최대 5개, 생성 시점 배부름 5 이하면 건너뜀. 똥이 1개 생길 때마다 배부름 -2(`poopSatietyCost`, 소화)
@@ -44,7 +44,7 @@
 - 병(`CFG.illness`, 상어별 `sh.ill`, `sh.ill.cause`): 두 가지 원인 — ① 똥이 4개째 생기는 순간(`poop`) ② 배부름 10 미만이 연속 3시간(`hunger`, `sh.lowSatH`, 10 이상이 되면 초기화). 이미 아프면 무시. 굶주림 병은 쓰다듬기 진행도 5 **+ 배부름 30 이상**이 모두 충족돼야 완치(먹이로 30을 넘기는 순간에도 완치 확인, 라벨 `굶주림 병`). 진행도가 꽉 찬 뒤 쓰다듬기는 기한을 늘리지 않음. 시간 제한 없이 쓰다듬기 치료 진행도 5가 되면 완치 — 똥이 있으면 1회=0.5. 아픈 동안 쓰다듬기는 애정 0, 완치 시 애정 +30. 손물림이 나면 그 쓰다듬기는 진행도 없음. 발병 후 18시간(`deathH`) 안에 못 고치면 사망("병을 이겨내지 못했어요"), 치료 진행도 0.5마다 사망 시각 +1시간(`extendHPerProg` 2 = 진행도 1당 2시간, `sh.ill.deadline`) — 마지막 청소 후 약 22.5~24시간에 사망하는 구조. 상단 라벨 `🤒 병 1.5/5 · 남은시간`, 쓰다듬기 버튼 `치료 x/5`, 상어는 질끈 감은 눈·체온계·빨간 볼·이마 그늘선(얼굴 우선순위: 손물림 > 병 > 배탈)
 - 똥이 1개라도 있으면 먹이·수영·쓰다듬기 회복량 절반(`poopGainMul` 0.5). 수영의 배부름 소모·악효과 감소치는 그대로
 - 사망: 배부름 0 누적 24시간, 세 스탯 모두 0 누적 8시간, 또는 병 기한 초과
-- 광고 보상(목업): 하루 3회, 먹이를 최대치(10개)까지 채움. 먹이가 가득 차 있으면 광고 버튼 비활성. 성장 배수 없음
+- 광고 보상(2026-10-19 변경): 먹이 **+10개**(`adFood`, 최대치를 넘어 쌓임). 먹이가 **10개 미만일 때만** 볼 수 있고, 마지막 광고 후 **60분 쿨타임**(`adCdMin`). 쿨타임은 먹이가 많아 광고를 못 보는 동안에도 흐른다(마지막 광고 시각 기준). 하루 횟수 제한 없음(최대 하루 24회지만 먹이 10개 미만 조건 때문에 실제로는 훨씬 적음). 광고로 쌓을 수 있는 최대는 19개. 성장 배수 없음. 화면은 `S.ads.last`, 서버는 `players.ad_last`(v2 마이그레이션)
 
 ### 돌봄 악효과 (`CFG.effects`)
 
@@ -97,20 +97,20 @@
 | `GET /api/me` | 내 정보 + 지금 상어(서버 시각으로 정산) + 떠난 상어 기록(최근 20) |
 | `POST /api/shark` `{name}` | 입양(이름 1~10자, 살아 있는 상어끼리 이름 중복 불가, 플레이어당 살아 있는 상어 1마리) |
 | `POST /api/shark/action` `{action}` | `feed`/`swim`/`pet`/`clean`. 응답: `ok`, `msg`(말풍선), `fx`(이모지), `fx2`(`pellets`/`blood`), `cls`(애니메이션), `toasts[]`, `effect`(악효과), `error`(`cooldown`+`cdLeftMs`, `dead`), `shark` |
-| `POST /api/shark/ad` | 광고 보상(앱이 직접 보고): 먹이 가득(한국 날짜 기준 하루 3회). 광고 시청을 서버가 확인 못 하는 경로라 `ADS_MODE`가 `ssv`면 403 `ad_unverified` |
+| `POST /api/shark/ad` | 광고 보상(앱이 직접 보고): 먹이 +10. 먹이 10개 이상이면 `food_full`, 쿨타임 중이면 `ad_cooldown`+`cdLeftMs`. 응답·`/api/me`의 `ads` = `{last, cdMin, food, leftMs, today}`. 광고 시청을 서버가 확인 못 하는 경로라 `ADS_MODE`가 `ssv`면 403 `ad_unverified` |
 | `GET /api/admob/ssv` | **AdMob 서버가 호출하는** 보상형 광고 서버 측 검증 콜백. 서명(ECDSA P-256, 구글 공개키 `verifier-keys.json`, 12시간 캐시)을 확인하고 `user_id`(=플레이어 ID)에게 지급, `transaction_id`로 중복 방지(`requests`에 `ssv_<tx>`). 서명이 틀리면 403, 맞으면 결과와 상관없이 200(구글 재전송 방지) |
 | `GET /api/rank?type=alive\|all` | 살아 있는 상어 / 플레이어별 역대 최고, 상위 50 + 토큰이 있으면 `me`(내 순위) |
 | `POST /api/import` `{shark, offsetMs}` | 브라우저(localStorage) 상어를 서버로 한 번 옮김. 값은 범위를 잘라서 받음(길이는 나이 대비 최대 성장량까지, 빨리 감기 시간은 되돌림) |
 
 - `shark` 응답 = 저장 상태 전체 + `id`, `stage`, `days`, `growthPerDay`, `cdLeftMs{행동별}`, `foodLeftMs`. 함께 오는 `now`(서버 시각)로 화면 타이머를 맞춘다.
 - 저장: `GET` 조회는 정산 결과를 30분에 한 번만 DB에 쓴다(정산은 결정적이라 다시 계산해도 같음 — 무료 쓰기 한도 절약). 매시 7분 cron이 50분 넘게 갱신 안 된 상어를 정산해 랭킹 길이·사망을 반영하고, 2일 지난 `requests` 기록을 지운다.
-- 테이블: `players`(토큰 해시, 역대 최고, 광고 횟수), `sharks`(상태 JSON + 랭킹용 열 `alive`·`len`·`rank_off`, `version`), `requests`(중복 요청 응답 기록).
+- 테이블: `players`(토큰 해시, 역대 최고, 광고 횟수·마지막 광고 시각 `ad_last`), `sharks`(상태 JSON + 랭킹용 열 `alive`·`len`·`rank_off`, `version`), `requests`(중복 요청 응답 기록).
 - 로컬 테스트: `cd server && npm install && npx wrangler dev --local` (로컬 D1 사용). 크론은 `/__scheduled?cron=7+*+*+*+*`(`--test-scheduled`).
 
 ## 광고 (AdMob 보상형, 2026-10-19 테스트 ID로 구현)
 
 - 흐름: 화면 [광고 보기] → 앱 안이면 `SharkAds.postMessage({type:'rewarded', reqId, userId})` → Flutter `lib/ads.dart`(`AdsService`)가 보상형 광고 재생(동의 UMP → SDK 초기화 → 광고 1개 미리 로드) → `window.__sharkAdResult({status: earned|dismissed|failed|busy, message, reqId})`. 웹 브라우저(앱 아님)는 3초 목업.
-- 지급: 지금 화면은 브라우저 저장소라 `grantAdReward()`가 로컬로 지급. 화면을 서버로 전환(④)할 때 `index.html`의 광고 보상 주석대로 바꾼다 — `ADS_MODE` `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 몇 번 다시 읽어 `player.ads.used` 증가 확인. 광고 요청에 `userId`=플레이어 ID 필수(SSV가 이 값으로 지급).
+- 지급: 지금 화면은 브라우저 저장소라 `grantAdReward()`가 로컬로 지급. 화면을 서버로 전환(④)할 때 `index.html`의 광고 보상 주석대로 바꾼다 — `ADS_MODE` `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 몇 번 다시 읽어 `player.ads.last`가 바뀌었는지 확인. 광고 요청에 `userId`=플레이어 ID 필수(SSV가 이 값으로 지급).
 - 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
 - 테스트 ID(구글 공개): 앱 ID는 `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`, setup이 AndroidManifest·Info.plist에 넣음), 보상형 광고 단위는 `flutter_app/lib/config.dart`(`kRewardedUnitAndroid`/`kRewardedUnitIos`). 안드로이드 minSdk 23 이상으로 맞춤.
 - **실제 광고로 바꿀 때 체크리스트**: ① AdMob 가입·앱 등록·보상형 광고 단위 생성 ② 위 4개 ID 교체 후 `dart run tool/setup.dart` 다시 실행 ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력 ④ `ADS_MODE`를 `ssv`로 ⑤ 저장소 루트에 `app-ads.txt`(AdMob이 알려 주는 한 줄) 추가 ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).

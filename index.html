@@ -208,7 +208,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
       <div class="stats" id="stats"></div>
       <div id="alertBox"></div>
       <div class="actions" id="actions"></div>
-      <div class="ad"><span>📺 광고 보고 먹이 가득 채우기 <span class="num" id="adLeft">(오늘 3/3)</span><br><small style="color:var(--ink-soft)">먹이 개수만 채워져요. 성장 배수는 없어요.</small></span><button id="adBtn">광고 보기</button></div>
+      <div class="ad"><span>📺 광고 보고 먹이 <span id="adFoodN">10</span>개 받기<br><small class="num" id="adLeft" style="color:var(--ink-soft)">먹이가 10개보다 적을 때 볼 수 있어요</small></span><button id="adBtn">광고 보기</button></div>
       <details class="dev"><summary>테스트 도구: 시간 빨리 감기</summary>
         <div class="devrow">
           <button class="btn-s" data-skip="1">+1시간</button><button class="btn-s" data-skip="6">+6시간</button><button class="btn-s" data-skip="12">+12시간</button><button class="btn-s" data-skip="24">+24시간</button><button class="btn-s" id="resetAll">게임 전체 초기화</button>
@@ -323,7 +323,7 @@ const KEY='bukangi-proto-v2';
 let mem=null;
 function load(){ try{ const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} return mem; }
 function save(){ mem=S; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
-function fresh(){ return { offsetMs:0, epoch:Date.now(), shark:null, graves:[], bestLen:0, bestName:'', ads:{day:'',used:0}, rivals:makeRivals() }; }
+function fresh(){ return { offsetMs:0, epoch:Date.now(), shark:null, graves:[], bestLen:0, bestName:'', ads:{last:0}, rivals:makeRivals() }; }
 
 let S = load() || fresh();
 let CFG = null;   // loadConfig()가 서버 설정 + 화면 값(DEFAULTS)으로 채운다. 옛 관리자 설정(S.cfg)은 읽지 않음
@@ -351,11 +351,11 @@ function settle(){
   for(const a in (sh.ail||{})) if(sh.ail[a].until<=t) delete sh.ail[a];   // 끝난 상태 이상 정리
   sh.lastSim=t; bumpBest(sh); save();
 }
-/* 먹이 충전: foodT = 다음 1개를 충전하기 시작한 시각. 가득 차 있으면 충전 시계는 멈춰 있다 */
+/* 먹이 충전: foodT = 다음 1개를 충전하기 시작한 시각. max개 이상이면 충전 시계는 멈춰 있다(광고로 max를 넘어 쌓일 수 있음) */
 function regenFood(sh){
   const F=CFG.food, t=now(), iv=F.regenMin*6e4;
   if(sh.food==null){ sh.food=F.max; sh.foodT=t; }          // 이전 저장 데이터
-  if(sh.food>=F.max){ sh.food=F.max; sh.foodT=t; return; }
+  if(sh.food>=F.max){ sh.foodT=t; return; }
   const n=Math.floor((t-sh.foodT)/iv);
   if(n>0){ sh.food=Math.min(F.max,sh.food+n); sh.foodT = sh.food>=F.max ? t : sh.foodT+n*iv; }
 }
@@ -817,17 +817,13 @@ function render(){
     if(k==='feed'){   // 먹이: 남은 개수 + 다음 충전까지 남은 시간, 막대는 충전 진행도
       const F=CFG.food, fl=foodLeft(sh);
       b.disabled=sh.food<=0||!sh.alive;
-      b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtSec(fl)}` : `${F.max}/${F.max}`;
+      b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtSec(fl)}` : (sh.food>F.max?`${sh.food}개`:`${F.max}/${F.max}`);
       b.querySelector('.fill').style.width= sh.food<F.max ? (100-fl/(F.regenMin*6e4)*100)+'%' : '0';
       return;
     }
     b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:(k==='pet'&&sh.ill?`치료 ${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure}`:'가능'));
     b.querySelector('.fill').style.width= left>0?(100-left/cd*100)+'%':'0'; });
-  const today=new Date(now()).toDateString(); if(S.ads.day!==today) S.ads={day:today,used:0};
-  const foodFull=sh.food>=CFG.food.max;
-  $('adLeft').textContent=`(오늘 ${Math.max(0,CFG.adDaily-S.ads.used)}/${CFG.adDaily})`;
-  $('adBtn').disabled=S.ads.used>=CFG.adDaily||!sh.alive||foodFull;
-  $('adBtn').textContent=foodFull?'가득 참':'광고 보기';
+  renderAd();
   if(!sh.alive) showDeath();
 }
 // 먹이 충전 남은 시간: 9:05 처럼 분:초 (1시간 이상이면 1:02:05)
@@ -855,7 +851,7 @@ function renderRec(){
     : '<p class="note" style="margin:0">아직 떠난 상어가 없어요. 이대로 쭉 지켜 주세요.</p>';
   const E=CFG.effects;
   $('howto').innerHTML=`<b style="color:var(--ink)">이 게임은 어떻게 자라나요?</b><br>세 스탯의 평균과 가장 낮은 스탯을 함께 봐요. 하나만 채우는 것보다 골고루 돌보는 쪽이 훨씬 빨리 커요. 똥이 쌓이면 성장이 느려지고, 배부름이 0인 채로 오래 버티면 떠나게 돼요.<br><br>
-    먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 한 번에 가득 채워져요.<br><br>
+    먹이는 최대 ${CFG.food.max}개까지 모아 둘 수 있어요. ${CFG.food.max}개보다 적으면 ${CFG.food.regenMin}분마다 1개씩 충전되고, 광고를 보면 ${adFood()}개를 더 받아요(${CFG.food.max}개를 넘어도 쌓여요). 광고는 먹이가 ${CFG.food.max}개보다 적을 때 볼 수 있고, 한 번 보면 ${CFG.adCdMin??60}분 뒤에 다시 볼 수 있어요.<br><br>
     똥은 ${CFG.poopEveryH}시간마다 생기고, 하나 쌀 때마다 배부름이 ${CFG.poopSatietyCost||0} 줄어요. 몸집이 클수록 배도 빨리 고파져요. 배탈 중에는 똥이 ${CFG.poopSickMul}배 빨리 생겨요. 똥이 있으면 먹이·수영·쓰다듬기 효과가 절반이 되니 먼저 청소해 주세요. 똥이 ${CFG.illness.poopAt}개째 쌓이면 ${CFG.illness.name}에 걸려요. 쓰다듬기 ${CFG.illness.petsToCure}번이면 낫는데(똥이 남아 있으면 1번이 0.5번), 아픈 동안은 쓰다듬어도 애정이 오르지 않고 다 나으면 애정이 ${CFG.illness.cureAffection} 올라요. 배부름이 ${CFG.illness.hungerBelow} 아래로 ${CFG.illness.hungerH}시간 이어져도 ${CFG.illness.name}에 걸리는데, 이때는 배부름 ${CFG.illness.cureSatiety} 이상도 채워야 나아요. ${CFG.illness.deathH}시간 안에 낫지 못하면 떠나게 되지만, 치료 0.5번마다 버틸 시간이 ${CFG.illness.extendHPerProg/2}시간씩 늘어나요.<br><br>
     수영은 처음엔 ${CFG.actions.swim.cdMin}분을 쉬어야 하지만, 수영할 때마다 쉬는 시간이 ${CFG.actions.swim.cdStepMin}분씩 줄어 최소 ${CFG.actions.swim.cdFloorMin}분까지 짧아져요.<br><br>
     가끔은 돌보다가 사고가 나요. 먹이는 ${E.feed.chance}% 확률로 ${E.feed.name}, 수영은 ${E.swim.chance}% 확률로 ${E.swim.name}, 쓰다듬기는 ${E.pet.chance}% 확률로 ${E.pet.name}에 걸려요. 걸리면 ${CFG.effectDurMin}분 동안 상어 모습이 바뀌고 스탯이 서서히 떨어져요.`;
@@ -913,10 +909,22 @@ $('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
    - 웹 브라우저: 아직 정책 미정이라 3초 목업 유지.
    지급(grantAdReward)은 지금 브라우저 저장소에 반영한다. 화면이 서버 API로 전환되면(다음 단계 ④) 여기서 서버 보상을 받는다:
      서버 ADS_MODE가 'test'면 POST /api/shark/ad, 'ssv'면 AdMob이 서버로 직접 알려 주므로 /api/me를 몇 번 다시 읽어
-     player.ads.used가 늘었는지 확인한다. 광고 요청 때 userId=플레이어 ID, reqId=요청 ID를 넘긴다. */
+     player.ads.last(쿨타임 시작)가 바뀌었는지 확인한다. 광고 요청 때 userId=플레이어 ID, reqId=요청 ID를 넘긴다. */
 const inApp=()=>typeof window.SharkAds!=='undefined'&&window.SharkAds&&typeof window.SharkAds.postMessage==='function';
 let adPending=null, adTimer=null;
-function grantAdReward(){ settle(); S.ads.used++; S.shark.food=CFG.food.max; S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${CFG.food.max}개 가득 충전!`); render(); }
+/* 광고 규칙(서버 CFG.adFood·adCdMin): 먹이가 max개 미만일 때만, 마지막 광고 후 adCdMin분 쿨타임.
+   쿨타임은 먹이가 많아 광고를 못 보는 동안에도 흐른다. 보상은 먹이 +adFood개(max를 넘어 쌓임) */
+const adFood=()=>CFG.adFood??10;
+const adCdLeft=()=>Math.max(0,(S.ads.last||0)+(CFG.adCdMin??60)*6e4-now());
+function renderAd(){
+  const sh=S.shark; if(!sh) return;
+  const many=sh.food>=CFG.food.max, cd=adCdLeft();
+  $('adFoodN').textContent=adFood();
+  $('adLeft').textContent= cd>0 ? `다음 광고까지 ${fmtSec(cd)}` : many ? `먹이가 ${CFG.food.max}개보다 적을 때 볼 수 있어요` : '지금 볼 수 있어요';
+  $('adBtn').disabled=!sh.alive||many||cd>0||!!adPending;
+  $('adBtn').textContent= cd>0 ? '쿨타임' : many ? '충분해요' : '광고 보기';
+}
+function grantAdReward(){ settle(); S.ads.last=now(); S.shark.food+=adFood(); if(S.shark.food>=CFG.food.max) S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${adFood()}개 충전!`); render(); }
 function adSheet(title,desc,bar){ $('adTitle').textContent=title; $('adDesc').textContent=desc; $('adBarWrap').hidden=!bar; $('ovAd').hidden=false; }
 window.__sharkAdResult=r=>{
   if(!r||!adPending||r.reqId!==adPending) return;
@@ -925,10 +933,10 @@ window.__sharkAdResult=r=>{
   else { if(r.message) toast(r.message); render(); }
 };
 $('adBtn').onclick=()=>{
-  if(adPending||S.ads.used>=CFG.adDaily||!S.shark||S.shark.food>=CFG.food.max) return;
+  if(adPending||!S.shark||!S.shark.alive||S.shark.food>=CFG.food.max||adCdLeft()>0) return;
   if(inApp()){
     adPending='ad_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-    adSheet('광고 불러오는 중…','광고를 끝까지 보면 먹이가 가득 채워져요.',false);
+    adSheet('광고 불러오는 중…',`광고를 끝까지 보면 먹이 ${adFood()}개를 받아요.`,false);
     window.SharkAds.postMessage(JSON.stringify({type:'rewarded',reqId:adPending,userId:S.playerId||''}));
     adTimer=setTimeout(()=>{ if(adPending){ adPending=null; $('ovAd').hidden=true; toast('광고 응답이 없어요. 잠시 후 다시 시도해 주세요'); } },90000);
     return;
@@ -994,7 +1002,7 @@ async function boot(){
 }
 boot();
 setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive){ settle(); render(); } },15000);
-setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
+setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||adCdLeft()>0||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
 // 앱을 다시 열었을 때(백그라운드 → 화면) 지난 시간을 바로 정산
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&CFG&&S.shark&&S.shark.alive){ settle(); render(); } });
 

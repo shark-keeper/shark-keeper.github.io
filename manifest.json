@@ -2,7 +2,7 @@
   "id": "/",
   "name": "상어집사",
   "short_name": "상어집사",
-  "description": "아기 상어를 돌보고 몸길이로 경쟁하는 엔딩 없는 육성 게임",
+  "description": "친수공원에 놀러 온 작은 아기 상어, 이번엔 당신이 집사가 되어 떠나지 않게 돌봐 주세요.",
   "lang": "ko",
   "dir": "ltr",
   "start_url": "/?source=pwa",

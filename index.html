@@ -124,9 +124,6 @@ button:focus-visible,input:focus-visible{outline:3px dashed var(--accent);outlin
 .ad{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);--bc:#7fc4ea;box-shadow:var(--pxb2);padding:8px 10px;font-size:13px;margin:4px 3px 14px}
 .ad button{background:var(--ink);color:#fff;padding:5px 10px;font-size:13px;white-space:nowrap;--bc:#061a2c;box-shadow:var(--pxb2)}
 .ad button:disabled{opacity:.4}
-details.dev{margin-bottom:12px;font-family:var(--f-display);font-size:11px;color:var(--ink-soft)}
-details.dev summary{cursor:pointer;padding:4px 0}
-.devrow{display:flex;gap:9px;flex-wrap:wrap;margin:6px 2px 0}
 .btn-s{background:var(--card);padding:4px 8px;font-family:var(--f-display);font-size:11px;box-shadow:var(--pxb2);--bc:var(--ink-soft)}
 
 /* tabs */
@@ -209,12 +206,6 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
       <div id="alertBox"></div>
       <div class="actions" id="actions"></div>
       <div class="ad"><span>📺 광고 보고 먹이 <span id="adFoodN">10</span>개 받기<br><small class="num" id="adLeft" style="color:var(--ink-soft)">먹이가 10개보다 적을 때 볼 수 있어요</small></span><button id="adBtn">광고 보기</button></div>
-      <details class="dev"><summary>테스트 도구: 시간 빨리 감기</summary>
-        <div class="devrow">
-          <button class="btn-s" data-skip="1">+1시간</button><button class="btn-s" data-skip="6">+6시간</button><button class="btn-s" data-skip="12">+12시간</button><button class="btn-s" data-skip="24">+24시간</button><button class="btn-s" id="resetAll">게임 전체 초기화</button>
-        </div>
-        <p class="note">실서비스에서는 서버 시각으로만 정산합니다. 방치·사망 규칙을 시험해 보기 위한 프로토타입 전용 기능이에요.</p>
-      </details>
     </div>
   </div>
 
@@ -224,7 +215,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
     <p class="sub num" id="rkTime">-</p>
     <div class="seg" role="group"><button id="rkAlive" aria-pressed="true">현재 생존</button><button id="rkAll" aria-pressed="false">역대 최고</button></div>
     <ol class="rk" id="rkList"></ol>
-    <p class="note">같은 몸길이(소수 첫째 자리 기준)는 같은 순위로 표시해요. 다른 상어들은 프로토타입용 예시 데이터입니다.</p>
+    <p class="note">모든 집사의 상어가 함께 겨뤄요. 위에서 50마리까지 보이고, 같은 몸길이(소수 첫째 자리 기준)는 같은 순위예요.</p>
   </div>
 
   <!-- ========== 기록 ========== -->
@@ -234,6 +225,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
     <div class="card kv" id="recSummary"></div>
     <div class="card" id="graves"></div>
     <div class="card note" id="howto"></div>
+    <p class="note" style="text-align:center;margin:6px 0 14px"><a href="privacy.html" style="color:var(--ink-soft)">개인정보처리방침</a></p>
   </div>
 
   <nav class="tabs" role="tablist">
@@ -268,7 +260,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
   <div class="sheet">
     <div style="font-size:54px">📡</div>
     <h3>바다에 연결하지 못했어요</h3>
-    <p>처음 시작할 때는 인터넷 연결이 필요해요.<br>연결을 확인하고 다시 시도해 주세요.</p>
+    <p>상어는 바다(서버)에서 지내요. 돌보려면 인터넷 연결이 필요해요.<br>연결을 확인하고 다시 시도해 주세요.</p>
     <button class="big" id="cfgRetry">다시 시도</button>
   </div>
 </div>
@@ -286,7 +278,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
 <div class="overlay" id="ovAd" hidden>
   <div class="sheet">
     <h3 id="adTitle">광고 재생 중</h3>
-    <p id="adDesc">프로토타입이라 실제 광고 대신 3초 대기로 대신해요.<br>완료 후 서버가 시청을 확인해야 보상이 지급되는 구조예요.</p>
+    <p id="adDesc">광고를 끝까지 보면 먹이를 받아요.</p>
     <div class="bar" id="adBarWrap" style="height:10px"><i id="adBar" style="width:0;background:var(--exe)"></i></div>
   </div>
 </div>
@@ -311,24 +303,78 @@ const CFG_KEY = 'shark-keeper-cfg';
 const clone = o => JSON.parse(JSON.stringify(o));
 const getP = (o,p) => p.split('.').reduce((a,k)=>a&&a[k], o);
 
-/* ===== 예시 경쟁자 ===== */
-function makeRivals(seed=7){
-  const names=['바다방울','해초빵','꼬마돌','파랑이','몽글상어','지느러미킹','두부','물결','통조림','소금빵','은빛','작은파도','모래알','동글','짭짤이','해파리친구','코랄','펭덕','심해왕','노을'];
-  const r=()=>((seed=seed*16807%2147483647)/2147483647);
-  return names.map((n,i)=>{ const base=30+r()*170; return { id:'r'+i+'-'+seed%1000, name:n, base, rate:r()*0.11, days:Math.floor(r()*80), alive:r()>0.25, best:base+40+r()*120 }; });
+/* ===== 저장: 상어는 서버(DB)에 있다 =====
+   브라우저에는 기기별 게스트 토큰만 보관한다. 행동·입양·광고는 서버에 보내고, 서버가 돌려준 상어 상태로 화면을 그린다.
+   아래 정산 로직(settle/tick)은 요청 사이에 화면을 부드럽게 갱신하기 위한 표시용 사본이다(서버 server/src/game.js와 같은 계산). */
+const KEY='bukangi-proto-v2';               // 옛 브라우저 저장 상어 — 첫 접속 때 서버로 한 번 옮기고 더는 쓰지 않는다
+const AUTH_KEY='shark-keeper-auth';         // { token, playerId }
+const MIGRATED_KEY='shark-keeper-migrated';
+const ILL_SEEN_KEY='shark-keeper-ill-seen'; // 병 안내를 이미 보여 준 발병 시각
+const lsGet=k=>{ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } };
+const lsSet=(k,v)=>{ try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
+let AUTH=lsGet(AUTH_KEY);
+let S={ shark:null, graves:[], bestLen:0, bestName:'', bestDays:0, ads:{last:0}, rank:{alive:null,all:null}, illSeen:lsGet(ILL_SEEN_KEY)||0 };
+let CFG=null;            // loadConfig()가 서버 설정 + 화면 값(DEFAULTS)으로 채운다
+let ADS_MODE='test';     // 서버 광고 지급 방식: test(앱 보고 인정) | ssv(AdMob 서버 검증)
+let srvOff=0;            // 서버 시각 - 기기 시각 (기기 시계가 틀려도 서버 기준으로 계산)
+const now=()=>Date.now()+srvOff;
+function save(){}        // 상어 저장은 서버가 한다
+
+/* ===== 서버 API ===== */
+class ApiError extends Error{ constructor(status,code,msg){ super(msg||code); this.status=status; this.code=code; } }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const newReqId=p=>p+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);   // 같은 요청이 두 번 가도 서버는 한 번만 처리
+async function api(method,path,body,timeout=10000){
+  const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),timeout);
+  let r, j=null;
+  try{
+    r=await fetch(API_BASE+path,{ method, signal:ctl.signal, cache:'no-store',
+      headers:{ ...(body?{'Content-Type':'application/json'}:{}), ...(AUTH&&AUTH.token?{Authorization:'Bearer '+AUTH.token}:{}) },
+      body: body?JSON.stringify(body):undefined });
+    j=await r.json();
+  }catch(e){ throw new ApiError(0,'network','바다에 연결하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+  finally{ clearTimeout(tm); }
+  if(j&&typeof j.now==='number') srvOff=j.now-Date.now();
+  if(!r.ok||!j) throw new ApiError(r.status,(j&&j.error)||'server_error',(j&&j.msg)||'서버에 문제가 생겼어요');
+  return j;
 }
-
-/* ===== 저장소 (실서비스에서는 서버 DB) ===== */
-const KEY='bukangi-proto-v2';
-let mem=null;
-function load(){ try{ const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} return mem; }
-function save(){ mem=S; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
-function fresh(){ return { offsetMs:0, epoch:Date.now(), shark:null, graves:[], bestLen:0, bestName:'', ads:{last:0}, rivals:makeRivals() }; }
-
-let S = load() || fresh();
-let CFG = null;   // loadConfig()가 서버 설정 + 화면 값(DEFAULTS)으로 채운다. 옛 관리자 설정(S.cfg)은 읽지 않음
-delete S.cfg;
-const now = () => Date.now() + S.offsetMs;
+// 서버 응답의 shark(저장 상태 + 표시용 값)에서 저장 상태만 꺼낸다
+function applyShark(v){
+  if(!v){ S.shark=null; return; }
+  const { stage, days, growthPerDay:_g, cdLeftMs, foodLeftMs, ...sh } = v;
+  S.shark=sh;
+}
+async function ensureAuth(){
+  if(AUTH&&AUTH.token) return;
+  const j=await api('POST','/api/guest');
+  AUTH={ token:j.token, playerId:j.playerId }; lsSet(AUTH_KEY,AUTH);
+}
+// 예전 버전(브라우저 저장)에서 키우던 상어가 있으면 서버로 한 번 옮긴다
+async function migrateOld(){
+  if(lsGet(MIGRATED_KEY)) return;
+  const old=lsGet(KEY);
+  if(old&&old.shark&&old.shark.alive){
+    try{ await api('POST','/api/import',{ shark:old.shark, offsetMs:old.offsetMs||0, reqId:newReqId('imp') }); }
+    catch(e){ if(e.code==='network'||e.status>=500) throw e; }   // 이미 옮겼거나 옮길 수 없으면 그냥 넘어간다
+  }
+  lsSet(MIGRATED_KEY,Date.now());
+}
+async function refreshMe(){
+  const j=await api('GET','/api/me');
+  applyShark(j.shark); S.graves=j.graves||[];
+  const b=(j.player&&j.player.best)||{}; S.bestLen=Math.max(b.len||0, S.shark&&S.shark.alive?S.shark.len:0); S.bestName=b.name||''; S.bestDays=b.days||0;
+  S.ads=(j.player&&j.player.ads)||{last:0};
+  if(j.player&&AUTH) AUTH.playerId=j.player.id;
+  return j;
+}
+const rankBusy={};
+async function refreshRank(type){
+  if(rankBusy[type]) return; rankBusy[type]=true;
+  try{ const j=await api('GET','/api/rank?type='+type); S.rank[type]={ rows:j.rows, me:j.me, at:j.now }; }
+  catch(e){ if(curTab==='rank'&&rkTab===type&&!S.rank[type]) toast(e.message); }
+  finally{ rankBusy[type]=false; render(); }
+}
+const rankStale=(type,ms)=>!S.rank[type]||now()-S.rank[type].at>ms;
 
 /* ===== 서버 권위 로직: 정산 ===== */
 const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
@@ -391,20 +437,10 @@ function tick(sh,h,at){
 /* 병: cause = 'poop'(똥 4개째) | 'hunger'(굶주림) */
 function startIll(sh,at,cause){ sh.ill={ since:at, prog:0, seen:false, cause, deadline:at+CFG.illness.deathH*36e5 }; }
 const illHunger=sh=>!!(sh.ill&&sh.ill.cause==='hunger');
-// 완치 조건: 쓰다듬기 진행도 충족 + (굶주림 병이면) 배부름 기준 이상
-function cureIfReady(sh){
-  const I=CFG.illness; if(!sh.ill||sh.ill.prog<I.petsToCure) return false;
-  if(illHunger(sh)&&sh.satiety<I.cureSatiety) return false;
-  sh.ill=null; sh.affection=clamp(sh.affection+I.cureAffection);
-  toast(`${I.name}이 나았어요! 애정 +${I.cureAffection}`); return true;
-}
-function die(sh,at,reason){
-  sh.alive=false; sh.diedAt=at; sh.reason=reason; bumpBest(sh);
-  S.graves.unshift({ name:sh.name, len:sh.len, days:daysAlive(sh,at), reason, diedAt:at });
-}
+function die(sh,at,reason){ sh.alive=false; sh.diedAt=at; sh.reason=reason; bumpBest(sh); }   // 표시용 — 기록은 서버에서 다시 받는다
 const daysAlive=(sh,t=now())=>Math.floor(((sh.alive?t:sh.diedAt)-sh.born)/864e5);
 
-/* ===== 행동 API (실서비스: POST /api/shark/actions — 확률 판정도 서버에서) ===== */
+/* ===== 행동: POST /api/shark/action — 확률 판정·결과는 서버가 정한다 ===== */
 const EFFECT_UI = {
   feed: { icon:'🤢', msgs:['꾸르륵… 배탈이 났어요','먹자마자 배가 아파요…'] },
   swim: { icon:'🩹', msgs:['쿵! 바위에 부딪혀 타박상을 입었어요','아야, 지느러미를 부딪혔어요'] },
@@ -418,98 +454,27 @@ function cdMs(a,sh=S.shark){
   return A.cdMin*6e4;
 }
 function cdLeft(a){ const sh=S.shark; const last=sh.cd[a]||0; return Math.max(0,last+cdMs(a,sh)-now()); }
-function act(a){
-  settle(); const sh=S.shark; if(!sh.alive) return render();
-  if(cdLeft(a)>0) return;
-  const A=CFG.actions[a], E=CFG.effects[a], t=now();
-  let ok=false, msg='', fx='', cls='';
-  if(a==='feed'){
-    if(sh.food<=0) msg='먹이가 다 떨어졌어요. 충전을 기다려 주세요';
-    else if(sh.satiety>=95) msg='배불러서 더 못 먹어요';
-    else { ok=true; sh.food--; dropPellets(); }
-  } else if(a==='swim'){
-    if(sh.satiety<A.satietyCost+2) msg='배고파서 헤엄칠 힘이 없어요';
-    else ok=true;
-  } else if(a==='pet'){
-    sh.pets=(sh.pets||[]).filter(x=>t-x<36e5);
-    if(sh.pets.length>=A.perHourCap) msg='지금은 조금 쉬고 싶어요';
-    else ok=true;
-  } else if(a==='clean'){
-    if(sh.poop===0) msg='깨끗해요!';
-    else { sh.affection=clamp(sh.affection+A.affPerPoop*sh.poop); msg=`${sh.poop}개 치웠어요. 상쾌해요!`; sh.poop=0; fx='✨'; sh.lastCare=t; }
-  }
-  if(ok){
-    const bad = E && E.chance>0 && Math.random()*100 < E.chance;
-    sh.cd[a]=t; sh.lastCare=t;
-    if(a==='swim') sh.swimN=(sh.swimN||0)+1;   // 타박상이 나도 수영은 한 것으로 센다
-    if(!bad || E.keepGain){
-      const m = sh.poop>0 ? CFG.poopGainMul : 1;   // 똥이 있으면 회복 반감
-      if(a==='feed'){ sh.satiety=clamp(sh.satiety+A.gain*m); msg=pick(['냠냠! 맛있어요','오물오물…','최고의 정어리!']); fx='🐟'; cls='chomp'; }
-      if(a==='swim'){ sh.exercise=clamp(sh.exercise+A.gain*m); sh.satiety=clamp(sh.satiety-A.satietyCost); msg=pick(['슝— 한 바퀴!','지느러미 운동 완료','더 빨라진 것 같아요']); fx='💨'; cls='dash'; }
-      if(a==='pet'&&!sh.ill){ const n=sh.pets.length; sh.affection=clamp(sh.affection+A.gain*Math.pow(0.7,n)*m); msg=n<2?pick(['헤헤, 간지러워요','좋아요!','더 쓰다듬어 줘요']):'고마워요 (조금 덜 신나요)'; fx='💗'; cls='wiggle'; }
-      if(m<1) msg=pick(['똥 냄새 때문에 집중이 안 돼요…','먼저 청소해 주면 좋겠어요','으… 주변이 더러워서 반만 신나요']);
-      if(a==='pet'&&sh.ill){   // 치료: 애정은 오르지 않고 진행도만 쌓인다 (똥이 있으면 반만)
-        const I=CFG.illness, add=Math.max(0,Math.min(m,I.petsToCure-sh.ill.prog)); cls='wiggle';
-        sh.ill.prog+=add;
-        sh.ill.deadline=(sh.ill.deadline||sh.ill.since+I.deathH*36e5)+add*I.extendHPerProg*36e5;   // 실제로 채운 진행도만큼만 연장
-        if(cureIfReady(sh)){ msg='다 나았어요! 정말 고마워요'; fx='💖'; }
-        else if(sh.ill.prog>=I.petsToCure){ msg=`쓰다듬기는 충분해요! 배부름 ${I.cureSatiety} 이상 먹으면 나을 것 같아요 (지금 ${Math.round(sh.satiety)})`; fx='🩺'; }
-        else {
-          msg = (m<1 ? `똥 때문에 반만 나았어요… (${fmtProg(sh.ill.prog)}/${I.petsToCure})` : `끙… 조금 나아졌어요 (${fmtProg(sh.ill.prog)}/${I.petsToCure})`)+` · 버틸 시간 +${fmtProg(add*I.extendHPerProg)}시간`; fx='🩺';
-        }
-      }
-      if(a==='feed'&&illHunger(sh)){
-        if(cureIfReady(sh)){ msg='배도 부르고 다 나았어요! 고마워요'; fx='💖'; }
-        else if(sh.satiety<CFG.illness.cureSatiety) msg=`조금 기운이 나요… (배부름 ${Math.round(sh.satiety)}/${CFG.illness.cureSatiety})`;
-      }
-    }
-    if(a==='pet') sh.pets.push(t);
-    if(bad){
-      const drops=startAil(sh,a,E,t);
-      msg=pick(EFFECT_UI[a].msgs); fx=EFFECT_UI[a].icon; cls='hurt';
-      toast(`${E.name}! ${CFG.effectDurMin}분 동안 ${drops.join(' · ')||'스탯 변화 없음'}`);
-      if(a==='pet') setTimeout(bloodFx,80);   // 물린 순간에만 물에 피가 살짝 번진다
-    }
-  }
-  if(cls) anim(cls); if(fx) burst(fx);
-  say(msg); save(); render();
+let busy=false;   // 서버 응답을 기다리는 중이면 버튼을 잠근다
+async function act(a){
+  if(busy||!S.shark||!S.shark.alive) return;
+  settle(); if(cdLeft(a)>0) return render();
+  busy=true; render();
+  try{
+    const r=await api('POST','/api/shark/action',{ action:a, reqId:newReqId(a) });
+    applyShark(r.shark);
+    if(r.fx2==='pellets') dropPellets();
+    if(r.cls) anim(r.cls); if(r.fx) burst(r.fx);
+    if(r.fx2==='blood') setTimeout(bloodFx,80);   // 물린 순간에만 물에 피가 살짝 번진다
+    (r.toasts||[]).forEach((t,i)=>setTimeout(()=>toast(t),i*1500));
+    if(r.msg) say(r.msg);
+    else if(r.error==='cooldown') say('조금만 쉬었다가 해요');
+  }catch(e){ toast(e.message); }
+  finally{ busy=false; render(); }
 }
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 const fmtProg=v=>(Math.round(v*10)/10).toString();
 
-/* 상태 이상 시작. 이미 같은 상태면 남은 감소치에 새 감소치를 더하고 시간을 다시 effectDurMin분으로 */
-function startAil(sh,a,E,t){
-  const dur=CFG.effectDurMin*6e4; sh.ail=sh.ail||{};
-  const cur=sh.ail[a], rate={}, drops=[];
-  ['satiety','exercise','affection'].forEach(k=>{
-    const v=+E[k]||0; let rem=v;
-    if(cur&&cur.until>t) rem+=(cur.rate[k]||0)*(cur.until-t);
-    if(rem>0) rate[k]=rem/dur;
-    if(v>0) drops.push(`${STAT_NAME[k]} -${v}`);
-  });
-  sh.ail[a]={ from:t, until:t+dur, rate };
-  return drops;
-}
 const activeAils=(sh,t=now())=>{ const o={}; for(const a in (sh.ail||{})) if(sh.ail[a].until>t) o[a]=sh.ail[a]; return o; };
-
-/* ===== 랭킹 ===== */
-function rivalLen(x){ return x.alive ? x.base + x.rate*((now()-S.epoch)/36e5) : x.base; }
-const rivalDays = x => x.days + (x.alive?Math.floor((now()-S.epoch)/864e5):0);
-function rankAlive(){
-  const rows=S.rivals.filter(x=>x.alive).map(x=>({id:x.id,name:x.name,len:rivalLen(x),days:rivalDays(x)}));
-  if(S.shark&&S.shark.alive&&!S.shark.rankOff) rows.push({id:'me',name:S.shark.name,len:S.shark.len,days:daysAlive(S.shark),me:true});
-  return withPos(rows);
-}
-function rankAll(){
-  const rows=S.rivals.map(x=>({id:x.id,name:x.name,len:Math.max(x.best,rivalLen(x)),days:rivalDays(x)}));
-  if(S.bestLen>0) rows.push({id:'me',name:S.bestName||'-',len:S.bestLen,days:S.bestDays||0,me:true});
-  return withPos(rows);
-}
-function withPos(rows){
-  rows.sort((a,b)=>b.len-a.len); let prev=null,pos=0;
-  rows.forEach((r,i)=>{ const k=r.len.toFixed(1); if(k!==prev){pos=i+1;prev=k;} r.pos=pos; });
-  return rows;
-}
 
 /* ===== 도트 그림 시작 (상어·똥·아이콘) — 아이콘 생성 스크립트가 이 구간을 통째로 읽는다 ===== */
 /* 도트 상어: 32x20 격자에 도형을 칠하고 외곽선을 자동으로 두른 뒤, 표정·상태 이상을 픽셀로 덧그린다.
@@ -777,8 +742,8 @@ function render(){
   $('sName').textContent=sh.name;
   $('sLen').textContent=sh.len.toFixed(1);
   $('sDays').textContent=`생존 ${daysAlive(sh)}일`;
-  const me=rankAlive().find(r=>r.me);
-  $('sRank').textContent=me?`현재 ${me.pos}위`:(sh.rankOff?'랭킹 제외됨':'순위 없음');
+  const RA=S.rank.alive;
+  $('sRank').textContent= sh.rankOff?'랭킹 제외됨' : !RA?'현재 -위' : RA.me?`현재 ${RA.me.pos}위`:'순위 없음';
   const st=stageOf(sh.len); $('sStage').textContent=CFG.stages[st][1]+' 상어';
   const g=sh.alive?growthPerDay(sh):0;
   $('sGrow').textContent= g===0 ? '성장 멈춤' : `하루 약 +${g.toFixed(2)}cm 페이스`;
@@ -796,7 +761,7 @@ function render(){
   $('ailChips').querySelectorAll('[data-ail]').forEach(el=>{ el.querySelector('b').textContent=fmtSec(ails[el.dataset.ail].until-now()); });
   const illChip=$('ailChips').querySelector('[data-ill]');   // 병은 시간이 아니라 치료 진행도로 표시
   if(illChip&&sh.ill) illChip.querySelector('b').textContent=`${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure} · ${fmtSec(Math.max(0,(sh.ill.deadline||0)-now()))}`;
-  if(sh.alive&&sh.ill&&!sh.ill.seen){ sh.ill.seen=true; save(); const I=CFG.illness, hg=illHunger(sh);
+  if(sh.alive&&sh.ill&&S.illSeen!==sh.ill.since){ S.illSeen=sh.ill.since; lsSet(ILL_SEEN_KEY,S.illSeen); const I=CFG.illness, hg=illHunger(sh);
     setTimeout(()=>{ say(hg?'너무 배고파서 몸이 안 좋아요… 밥 주고 쓰다듬어 주세요':'똥이 너무 많아서 아파요… 쓰다듬어 주세요');
       toast(hg?`굶주림 ${I.name}! 배부름 ${I.cureSatiety} + 쓰다듬기 ${I.petsToCure}번`:`${I.name}에 걸렸어요! 쓰다듬기 ${I.petsToCure}번으로 낫게 해 주세요`); },300); }
   if(st!==lastStage||mood!==lastMood||ailKey!==lastAilKey){
@@ -816,12 +781,12 @@ function render(){
   ACTS.forEach(([k])=>{ const b=$('a-'+k), left=cdLeft(k), cd=Math.max(1,cdMs(k,sh));
     if(k==='feed'){   // 먹이: 남은 개수 + 다음 충전까지 남은 시간, 막대는 충전 진행도
       const F=CFG.food, fl=foodLeft(sh);
-      b.disabled=sh.food<=0||!sh.alive;
+      b.disabled=sh.food<=0||!sh.alive||busy;
       b.querySelector('.cd').textContent= sh.food<F.max ? `${sh.food}/${F.max} · ${fmtSec(fl)}` : (sh.food>F.max?`${sh.food}개`:`${F.max}/${F.max}`);
       b.querySelector('.fill').style.width= sh.food<F.max ? (100-fl/(F.regenMin*6e4)*100)+'%' : '0';
       return;
     }
-    b.disabled=left>0||!sh.alive; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:(k==='pet'&&sh.ill?`치료 ${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure}`:'가능'));
+    b.disabled=left>0||!sh.alive||busy; b.querySelector('.cd').textContent= left>0?fmtCd(left):(k==='clean'&&sh.poop?`${sh.poop}개`:(k==='pet'&&sh.ill?`치료 ${fmtProg(sh.ill.prog)}/${CFG.illness.petsToCure}`:'가능'));
     b.querySelector('.fill').style.width= left>0?(100-left/cd*100)+'%':'0'; });
   renderAd();
   if(!sh.alive) showDeath();
@@ -834,14 +799,16 @@ const medal=p=>p===1?'🥇':p===2?'🥈':p===3?'🥉':p;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 function renderRank(){
-  const rows=rkTab==='alive'?rankAlive():rankAll();
-  const meIdx=rows.findIndex(r=>r.me);
-  const show=rows.slice(0,10); if(meIdx>=10) show.push('gap',rows[meIdx]);
+  const R=S.rank[rkTab];
+  if(!R){ $('rkList').innerHTML='<li class="gap">바다에서 순위를 불러오는 중…</li>'; $('rkTime').textContent='-'; return; }
+  const live=r=>(r.me&&rkTab==='alive'&&S.shark&&S.shark.alive)?{...r,len:S.shark.len,days:daysAlive(S.shark)}:r;   // 내 상어는 방금 정산한 길이로
+  const show=R.rows.slice(0,10).map(live);
+  if(R.me&&!show.some(r=>r.me)) show.push('gap',live(R.me));
   $('rkList').innerHTML=show.map(r=>r==='gap'?'<li class="gap">⋯</li>':
     `<li class="${r.me?'me':''}"><span class="pos num">${medal(r.pos)}</span><span>${['🐟','🦈','🦈','👑'][stageOf(r.len)]}</span><span class="nm">${esc(r.name)}${r.me?' (나)':''}<small>${CFG.stages[stageOf(r.len)][1]} · ${r.days}일</small></span><span class="cm num">${r.len.toFixed(1)}cm</span></li>`).join('')
     || '<li class="gap">아직 등록된 상어가 없어요</li>';
-  if(rkTab==='alive'&&meIdx<0&&S.shark) $('rkList').insertAdjacentHTML('beforeend',`<li class="gap">${S.shark.rankOff?'내 상어는 랭킹에서 제외됐어요':'내 상어는 지금 생존 랭킹에 없어요'}</li>`);
-  const d=new Date(now()); $('rkTime').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} 기준 · 몸길이 순`;
+  if(rkTab==='alive'&&!R.me&&S.shark) $('rkList').insertAdjacentHTML('beforeend',`<li class="gap">${S.shark.rankOff?'내 상어는 랭킹에서 제외됐어요':'내 상어는 지금 생존 랭킹에 없어요'}</li>`);
+  const d=new Date(R.at); $('rkTime').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} 기준 · 몸길이 순`;
 }
 function renderRec(){
   const sh=S.shark;
@@ -878,40 +845,59 @@ function dropPellets(){ for(let i=0;i<5;i++){ const p=document.createElement('sp
 function bubbles(){ for(let i=0;i<7;i++){ const b=document.createElement('span'); const s=6+Math.random()*10; b.className='bubble'; b.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*95}%;animation-duration:${5+Math.random()*6}s;animation-delay:${-Math.random()*8}s`; $('tank').appendChild(b);} }
 
 /* flows */
-function newShark(name){
-  const t=now();
-  S.shark={ name, born:t, lastSim:t, lastCare:t, alive:true, len:CFG.startLen, satiety:80, exercise:60, affection:70, poop:0, poopT:0, food:CFG.food.max, foodT:t, starveH:0, zeroH:0, cd:{}, pets:[], ail:{}, ill:null, lowSatH:0, rankOff:false };
-  save(); lastStage=-1; lastAilKey=null; render(); say(`안녕! 나는 ${name}이에요`);
-}
 function showStart(again){
   $('startShark').innerHTML=sharkSVG(0,'ok',150);
   $('startTitle').textContent=again?'새 아기 상어가 왔어요':CFG.brandName;
   $('nickIn').value=''; $('nickErr').textContent=''; $('ovStart').hidden=false; setTimeout(()=>$('nickIn').focus(),50);
 }
-$('startBtn').onclick=()=>{
-  const v=$('nickIn').value.trim();
-  if(v.length<1||v.length>10){ $('nickErr').textContent='이름은 1~10자로 지어 주세요'; return; }
-  if(S.rivals.some(r=>r.name===v)){ $('nickErr').textContent='이미 바다에 같은 이름의 상어가 있어요'; return; }
-  $('ovStart').hidden=true; newShark(v);
+function afterAdopt(msg){
+  $('ovStart').hidden=true; $('ovDeath').hidden=true; deathSynced=false; lastStage=-1; lastAilKey=null;
+  render(); if(msg) say(msg);
+  refreshRank('alive'); refreshMe().then(render).catch(()=>{});
+}
+$('startBtn').onclick=async()=>{
+  const v=$('nickIn').value.trim(), btn=$('startBtn');
+  if([...v].length<1||[...v].length>10){ $('nickErr').textContent='이름은 1~10자로 지어 주세요'; return; }
+  if(btn.disabled) return;
+  btn.disabled=true; $('nickErr').textContent='';
+  try{
+    const r=await api('POST','/api/shark',{ name:v, reqId:newReqId('new') });
+    applyShark(r.shark); afterAdopt(r.msg||`안녕! 나는 ${v}이에요`);
+  }catch(e){
+    if(e.code==='has_shark'){ try{ await refreshMe(); afterAdopt(''); }catch(_){ $('nickErr').textContent=e.message; } }
+    else $('nickErr').textContent=e.message;   // 이름 중복(name_taken)·연결 실패 등
+  }finally{ btn.disabled=false; }
 };
 $('nickIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('startBtn').click(); });
-function showDeath(){
-  const sh=S.shark; if(!$('ovDeath').hidden) return;
+let deathSynced=false;
+function fillDeath(){
+  const sh=S.shark; if(!sh) return;
+  const allMe=S.rank.all&&S.rank.all.me;
   $('dTitle').textContent=`${sh.name}가 바다로 떠났어요`;
-  $('dReason').textContent=sh.reason+'. 기록은 추억의 바다에 남아요.';
-  $('dStats').innerHTML=`<div><small>최종 길이</small><b class="num">${sh.len.toFixed(1)}cm</b></div><div><small>생존</small><b class="num">${daysAlive(sh)}일</b></div><div><small>개인 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div><div><small>역대 순위</small><b class="num">${rankAll().find(r=>r.me)?.pos??'-'}위</b></div>`;
-  $('ovDeath').hidden=false;
+  $('dReason').textContent=(sh.reason||'바다로 돌아갔어요')+'. 기록은 추억의 바다에 남아요.';
+  $('dStats').innerHTML=`<div><small>최종 길이</small><b class="num">${sh.len.toFixed(1)}cm</b></div><div><small>생존</small><b class="num">${daysAlive(sh)}일</b></div><div><small>개인 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div><div><small>역대 순위</small><b class="num">${allMe?allMe.pos:'-'}위</b></div>`;
+}
+function showDeath(){
+  if(!$('ovDeath').hidden) return;
+  fillDeath(); $('ovDeath').hidden=false;
+  if(deathSynced) return; deathSynced=true;
+  // 서버에서 최종 기록·역대 순위를 다시 받아 채운다
+  const dead=S.shark;
+  Promise.all([refreshMe().catch(()=>{}), refreshRank('all')]).then(()=>{
+    if(!S.shark) S.shark=dead;   // 서버는 떠난 상어를 기록으로만 돌려준다 — 화면엔 방금 떠난 상어를 그대로 둔다
+    if(S.shark.alive){ $('ovDeath').hidden=true; deathSynced=false; render(); return; }   // 서버 기준으로는 아직 살아 있음
+    fillDeath();
+  });
 }
 $('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
 
 /* ===== 광고 보상 =====
    - 앱(Flutter) 안: 앱의 SharkAds 통로로 AdMob 보상형 광고를 요청하고, window.__sharkAdResult로 결과를 받는다.
    - 웹 브라우저: 아직 정책 미정이라 3초 목업 유지.
-   지급(grantAdReward)은 지금 브라우저 저장소에 반영한다. 화면이 서버 API로 전환되면(다음 단계 ④) 여기서 서버 보상을 받는다:
-     서버 ADS_MODE가 'test'면 POST /api/shark/ad, 'ssv'면 AdMob이 서버로 직접 알려 주므로 /api/me를 몇 번 다시 읽어
-     player.ads.last(쿨타임 시작)가 바뀌었는지 확인한다. 광고 요청 때 userId=플레이어 ID, reqId=요청 ID를 넘긴다. */
+   지급(grantAdReward)은 서버가 한다: ADS_MODE가 'test'면 POST /api/shark/ad, 'ssv'면 AdMob이 서버로 직접 알려 주므로
+   /api/me를 몇 번 다시 읽어 player.ads.last(쿨타임 시작)가 바뀌었는지 확인한다. 광고 요청 때 userId=플레이어 ID, reqId=요청 ID를 넘긴다. */
 const inApp=()=>typeof window.SharkAds!=='undefined'&&window.SharkAds&&typeof window.SharkAds.postMessage==='function';
-let adPending=null, adTimer=null;
+let adPending=null, adTimer=null, adClaiming=false;
 /* 광고 규칙(서버 CFG.adFood·adCdMin): 먹이가 max개 미만일 때만, 마지막 광고 후 adCdMin분 쿨타임.
    쿨타임은 먹이가 많아 광고를 못 보는 동안에도 흐른다. 보상은 먹이 +adFood개(max를 넘어 쌓임) */
 const adFood=()=>CFG.adFood??10;
@@ -921,53 +907,56 @@ function renderAd(){
   const many=sh.food>=CFG.food.max, cd=adCdLeft();
   $('adFoodN').textContent=adFood();
   $('adLeft').textContent= cd>0 ? `다음 광고까지 ${fmtSec(cd)}` : many ? `먹이가 ${CFG.food.max}개보다 적을 때 볼 수 있어요` : '지금 볼 수 있어요';
-  $('adBtn').disabled=!sh.alive||many||cd>0||!!adPending;
+  $('adBtn').disabled=!sh.alive||many||cd>0||!!adPending||adClaiming;
   $('adBtn').textContent= cd>0 ? '쿨타임' : many ? '충분해요' : '광고 보기';
 }
-function grantAdReward(){ settle(); S.ads.last=now(); S.shark.food+=adFood(); if(S.shark.food>=CFG.food.max) S.shark.foodT=now(); save(); burst('🐟'); say(`먹이 ${adFood()}개 충전!`); render(); }
+async function grantAdReward(reqId){
+  adClaiming=true; render();
+  try{
+    if(ADS_MODE==='ssv'){
+      const before=S.ads.last||0;
+      for(let i=0;i<8&&(S.ads.last||0)===before;i++){ await sleep(1500); await refreshMe(); }
+      if((S.ads.last||0)===before){ toast('광고 보상을 확인하고 있어요. 잠시 후 다시 들어와 주세요'); return; }
+      burst('🐟'); say(`먹이 ${adFood()}개 충전!`);
+    } else {
+      const r=await api('POST','/api/shark/ad',{ reqId });
+      applyShark(r.shark); if(r.ads) S.ads=r.ads;
+      if(r.ok){ burst('🐟'); say(r.msg||`먹이 ${adFood()}개 충전!`); } else if(r.msg) toast(r.msg);
+    }
+  }catch(e){ toast(e.message); }
+  finally{ adClaiming=false; render(); }
+}
 function adSheet(title,desc,bar){ $('adTitle').textContent=title; $('adDesc').textContent=desc; $('adBarWrap').hidden=!bar; $('ovAd').hidden=false; }
 window.__sharkAdResult=r=>{
   if(!r||!adPending||r.reqId!==adPending) return;
-  adPending=null; clearTimeout(adTimer); $('ovAd').hidden=true;
-  if(r.status==='earned') grantAdReward();
+  const rid=adPending; adPending=null; clearTimeout(adTimer); $('ovAd').hidden=true;
+  if(r.status==='earned') grantAdReward(rid);
   else { if(r.message) toast(r.message); render(); }
 };
 $('adBtn').onclick=()=>{
-  if(adPending||!S.shark||!S.shark.alive||S.shark.food>=CFG.food.max||adCdLeft()>0) return;
+  if(adPending||adClaiming||!S.shark||!S.shark.alive||S.shark.food>=CFG.food.max||adCdLeft()>0) return;
   if(inApp()){
     adPending='ad_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
     adSheet('광고 불러오는 중…',`광고를 끝까지 보면 먹이 ${adFood()}개를 받아요.`,false);
-    window.SharkAds.postMessage(JSON.stringify({type:'rewarded',reqId:adPending,userId:S.playerId||''}));
+    window.SharkAds.postMessage(JSON.stringify({type:'rewarded',reqId:adPending,userId:(AUTH&&AUTH.playerId)||''}));
     adTimer=setTimeout(()=>{ if(adPending){ adPending=null; $('ovAd').hidden=true; toast('광고 응답이 없어요. 잠시 후 다시 시도해 주세요'); } },90000);
     return;
   }
-  adSheet('광고 재생 중','프로토타입이라 실제 광고 대신 3초 대기로 대신해요.',true);
+  // 앱이 아닌 브라우저(개발용 ?source=app): 3초 목업
+  adSheet('광고 재생 중','개발용 화면이라 실제 광고 대신 3초 기다려요.',true);
   const bar=$('adBar'); bar.style.transition='none'; bar.style.width='0';
   requestAnimationFrame(()=>requestAnimationFrame(()=>{ bar.style.transition='width 3s linear'; bar.style.width='100%'; }));
-  setTimeout(()=>{ $('ovAd').hidden=true; grantAdReward(); },3050);
+  setTimeout(()=>{ $('ovAd').hidden=true; grantAdReward(newReqId('ad')); },3050);
 };
-
-document.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>{ S.offsetMs+=(+b.dataset.skip)*36e5; settle(); render(); say(`${b.dataset.skip}시간이 흘렀어요`); });
-armButton($('resetAll'),'한 번 더 누르면 초기화',()=>{
-  try{localStorage.removeItem(KEY);}catch(_){}; mem=null; S=fresh();
-  $('ovDeath').hidden=true; showStart(false);
-});
-
-/* 두 번 눌러 확정하는 버튼 */
-function armButton(el,armText,fn){
-  const orig=el.textContent; let t;
-  el.onclick=()=>{ if(!el.classList.contains('arm')){ el.classList.add('arm'); el.textContent=armText; clearTimeout(t); t=setTimeout(()=>{el.classList.remove('arm');el.textContent=orig;},3000); return; }
-    clearTimeout(t); el.classList.remove('arm'); el.textContent=orig; fn(); };
-}
 
 /* tabs */
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   curTab=b.dataset.tab; document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
   ['care','rank','rec'].forEach(v=>$('v-'+v).hidden=v!==curTab);
-  if(CFG){ settle(); render(); }
+  if(CFG){ settle(); render(); if(curTab==='rank'&&rankStale(rkTab,30e3)) refreshRank(rkTab); }
 });
 function seg(a,b,onA,onB){ a.onclick=()=>{a.setAttribute('aria-pressed',true);b.setAttribute('aria-pressed',false);onA();}; b.onclick=()=>{b.setAttribute('aria-pressed',true);a.setAttribute('aria-pressed',false);onB();}; }
-seg($('rkAlive'),$('rkAll'),()=>{rkTab='alive';renderRank();},()=>{rkTab='all';renderRank();});
+seg($('rkAlive'),$('rkAll'),()=>{rkTab='alive';renderRank();if(rankStale('alive',30e3))refreshRank('alive');},()=>{rkTab='all';renderRank();if(rankStale('all',30e3))refreshRank('all');});
 
 /* 서버에서 게임 설정값 받기 (4초 안에 응답이 없으면 마지막으로 받아 둔 값 사용) */
 async function loadConfig(){
@@ -975,12 +964,12 @@ async function loadConfig(){
   try{
     const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),4000);
     const r=await fetch(API_BASE+'/api/config',{signal:ctl.signal,cache:'no-store'}); clearTimeout(tm);
-    const j=await r.json(); if(j&&j.ok&&j.config){ cfg=j.config; try{ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }catch(e){} }
+    const j=await r.json(); if(j&&j.ok&&j.config){ cfg=j.config; ADS_MODE=j.adsMode||'test'; try{ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }catch(e){} }
   }catch(e){}
   if(!cfg){ try{ cfg=JSON.parse(localStorage.getItem(CFG_KEY)||'null'); }catch(e){} }
   return cfg ? { ...cfg, ...DEFAULTS } : null;
 }
-function showCfgError(){
+function showNetError(){
   const ov=$('ovCfg'); ov.hidden=false;
   $('cfgRetry').onclick=()=>{ ov.hidden=true; boot(); };
 }
@@ -996,15 +985,32 @@ function showWebOnly(){
 async function boot(){
   if(!IS_APP) return showWebOnly();
   CFG=await loadConfig();
-  if(!CFG) return showCfgError();
-  if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); }
+  if(!CFG) return showNetError();
+  try{
+    await ensureAuth();
+    await migrateOld();
+    try{ await refreshMe(); }
+    catch(e){   // 토큰이 서버에 없으면(서버 초기화 등) 새 게스트로 시작
+      if(e.code!=='bad_token') throw e;
+      AUTH=null; lsSet(AUTH_KEY,null); await ensureAuth(); await refreshMe();
+    }
+  }catch(e){ return showNetError(); }
+  booted=true;
+  if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); refreshRank('alive'); }
   else showStart(false);
 }
+let booted=false;
 boot();
-setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive){ settle(); render(); } },15000);
-setInterval(()=>{ if(CFG&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||adCdLeft()>0||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
-// 앱을 다시 열었을 때(백그라운드 → 화면) 지난 시간을 바로 정산
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&CFG&&S.shark&&S.shark.alive){ settle(); render(); } });
+setInterval(()=>{ if(booted&&S.shark&&S.shark.alive){ settle(); render(); } },15000);
+setInterval(()=>{ if(booted&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.food<CFG.food.max||adCdLeft()>0||lastAilKey||ACTS.some(([k])=>cdLeft(k)>0))){ regenFood(S.shark); render(); } },1000);
+// 5분마다 서버와 다시 맞춘다(랭킹·서버에서 바뀐 상태)
+setInterval(()=>{ if(!booted||document.hidden||busy) return; refreshMe().then(render).catch(()=>{}); refreshRank(curTab==='rank'?rkTab:'alive'); },5*6e4);
+// 앱을 다시 열었을 때(백그라운드 → 화면) 서버에서 지금 상태를 받는다
+document.addEventListener('visibilitychange',()=>{ if(document.hidden||!booted) return;
+  if(S.shark&&S.shark.alive){ settle(); render(); }
+  if(!busy) refreshMe().then(()=>{ if(!S.shark&&$('ovStart').hidden&&$('ovDeath').hidden) showStart(true); render(); }).catch(()=>{});
+  if(rankStale('alive',6e4)) refreshRank('alive');
+});
 
 /* PWA: 홈 화면 설치·오프라인 실행용 서비스 워커 */
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){

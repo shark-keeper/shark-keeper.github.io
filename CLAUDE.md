@@ -62,16 +62,21 @@
 - 상어 모습(`sharkSVG`의 `ail` 인자): 배탈 = 홀쭉한 배·반쯤 감긴 눈·다크서클·창백한 초록빛, 타박상 = 반창고 여러 개·눈가 보라색 멍, 손물림 = 걱정 눈썹·글썽이는 눈·홍조(미안한 표정). 얼굴 우선순위는 손물림 > 배탈 > 시무룩 > 보통이고, 반창고·멍·홀쭉한 배는 겹쳐 그린다.
 - 손물림은 물린 순간에만 상어 입가 물에 피가 번지는 이펙트(`bloodFx`).
 
-## 현재 한계
+## 화면 ↔ 서버 (2026-10-20 전환 완료)
 
-- 저장은 각 브라우저 localStorage(`bukangi-proto-v2`)에만 된다. 서버 없음.
-- 랭킹의 다른 상어 20마리는 예시 데이터(`makeRivals`). 플레이어끼리 랭킹은 공유되지 않는다.
-- 육성 화면의 "시간 빨리 감기"는 테스트용. 서버가 생기면 제거한다.
+- 상어는 **서버(D1)에 저장**된다. 화면은 기기별 게스트 토큰(localStorage `shark-keeper-auth` = `{token, playerId}`)만 보관하고, 입양(`POST /api/shark`)·행동(`/api/shark/action`)·광고(`/api/shark/ad`)를 서버에 보낸 뒤 돌려받은 `shark`로 그린다(`applyShark`). 요청마다 `reqId`(`newReqId`)를 붙여 두 번 눌러도 한 번만 처리. 응답의 `now`로 기기 시계를 서버 시각에 맞춘다(`srvOff`).
+- 화면의 `settle`/`tick`/`regenFood`는 요청 사이에 화면을 매끄럽게 갱신하는 **표시용 사본**(서버와 같은 계산). 확률 판정·행동 결과·완치·사망 기록은 서버만 정한다(화면의 `act` 로직·`startAil`·`cureIfReady`는 제거).
+- 시작: `/api/config` → 토큰 없으면 `POST /api/guest` → 옛 브라우저 상어(`bukangi-proto-v2`)가 살아 있으면 `POST /api/import`로 한 번 옮김(`shark-keeper-migrated` 표시, 옛 떠난 상어 기록은 옮기지 않음) → `GET /api/me`. 서버에 못 닿으면 "바다에 연결하지 못했어요"(`#ovCfg`, 다시 시도). 토큰이 서버에 없으면(`bad_token`) 새 게스트로 시작.
+- 갱신: 15초마다 화면 정산, 5분마다·앱 복귀 때 `/api/me` 다시 읽기, 랭킹은 탭을 열 때(30초 지났으면)·5분마다 `GET /api/rank`. 육성 화면 순위 칩은 `S.rank.alive.me.pos`.
+- 랭킹: 모든 플레이어 공유, 상위 50 + 내 순위. 예시 상어(`makeRivals`)와 "시간 빨리 감기"·"게임 전체 초기화" 테스트 도구는 제거했다(서버 시각으로만 정산). 같은 이름은 살아 있는 상어끼리 서버가 막는다(`name_taken`).
+- 병 안내 팝업을 이미 봤는지는 기기에만 기록(`shark-keeper-ill-seen` = 발병 시각).
+- 로컬에서 화면+서버를 함께 시험할 때: `cd server && npx wrangler dev --local --port 8793`을 띄우고, Playwright에서 `API_BASE` 요청을 로컬로 넘겨(route) `http://localhost:<포트>/?source=app`을 연다(서버 CORS가 localhost 허용). 주소 매개변수로 API 주소를 바꾸는 기능은 토큰 유출 위험이 있어 두지 않는다.
+- 개인정보처리방침: `privacy.html`(https://shark-keeper.github.io/privacy.html, 기록 탭 맨 아래 링크). 문의 이메일은 아직 '준비 중' — 정해지면 `#contact`를 채운다.
 
 ## 다음 단계 후보
 
 1. ~~PWA화~~ (완료)
-2. 공유 랭킹용 API 서버 — **Cloudflare Workers + D1. ①②③ 완료(아래 "API 서버" 절), 다음은 ④ 화면 전환**. 서버 권위 모델: 클라이언트는 행동만 보내고 정산·확률 판정·사망·랭킹은 서버에서. 계획:
+2. 공유 랭킹용 API 서버 — **Cloudflare Workers + D1. ①~⑤ 모두 완료(2026-10-20, 위 "화면 ↔ 서버" 절)**. 서버 권위 모델: 클라이언트는 행동만 보내고 정산·확률 판정·사망·랭킹은 서버에서. 계획:
    - 무료 플랜 기준(2026-10 확인): Workers 하루 요청 10만·요청당 CPU 10ms, D1 하루 읽기 500만 행·쓰기 10만 행·저장 5GB. 2026-09부터 D1 한도 초과 시 쿼리 에러(UTC 자정=한국 오전 9시 해제). DAU 약 500~1,000명까지 무료로 예상. PHP 불가라 Laravel 대신 Workers(JS).
    - 순서: ① 사용자가 Cloudflare 계정 생성 + 배포 연결 ② `server/` 폴더에 Workers + D1 프로젝트(스키마, API: 상어 조회·생성/행동/랭킹, `settle`·`tick`·`act` 로직을 서버로 이전, 중복 요청 방지) ③ wrangler 로컬 모드로 테스트 ④ 화면을 API 사용으로 전환(처음엔 기기별 게스트 토큰, 기존 localStorage 상어 서버로 이전) ⑤ 공유 랭킹 연결, `makeRivals`·시간 빨리 감기 제거
    - 배포 연결은 **Cloudflare Workers Builds(GitHub 앱 연동)**로 결정: Cloudflare가 `main` push를 감지해 `server/`를 빌드·배포한다(API 토큰·GitHub Secrets 불필요). Worker 이름은 `shark-keeper-api`이고 `server/wrangler.jsonc`의 `name`과 반드시 같아야 한다. 대시보드 설정: Root directory `server`, Deploy command `npx wrangler deploy`, Build watch paths `server/*`. 서버 CORS 허용 주소는 `server/src/index.js`의 `ALLOWED_ORIGINS`. 토큰·비밀값은 절대 코드에 넣지 않는다(필요하면 `wrangler secret`).
@@ -83,7 +88,7 @@
 
 - 주소: `https://shark-keeper-api.shark-keeper.workers.dev` — `main`에 push하면 Cloudflare Workers Builds가 `server/`만 배포(빌드 감시 경로 `server/*`).
 - 파일: `src/game.js`(게임 엔진: `CFG`·`settle`·`tick`·`act` — index.html 로직을 화면 코드 없이 옮김, 시간·난수를 인자로 받음), `src/index.js`(라우트·DB), `src/schema.js`(테이블 — 첫 요청 때 자동 생성, 바꿀 땐 `MIGRATIONS`에 단계 추가).
-- **밸런스 값은 `src/game.js`의 `CFG` 한 곳**(화면은 `/api/config`로 받아 씀). 다만 화면의 정산·행동 로직(`settle`/`tick`/`act`)은 아직 `index.html`에도 있으니, 규칙(계산 방식)을 바꿀 때는 두 엔진을 함께 고치고 비교 테스트를 돌린다(화면이 서버 API로 전환되면 화면 쪽 로직은 표시용으로만 남는다).
+- **밸런스 값은 `src/game.js`의 `CFG` 한 곳**(화면은 `/api/config`로 받아 씀). 행동 결과는 서버만 정하지만, 화면에 정산(`settle`/`tick`/`regenFood`) 표시용 사본이 있으니 정산 규칙(시간에 따른 계산)을 바꿀 때는 `index.html` 쪽도 같이 고쳐야 화면 숫자가 튀지 않는다.
 - 서버 엔진과 화면 로직이 같은지는 무작위·장기(5일) 시나리오로 비교 검증함. 엔진을 고치면 같은 비교를 다시 돌린다.
 - 인증: `POST /api/guest`가 기기별 게스트 토큰(`sk_...`)을 한 번만 내려주고, 이후 `Authorization: Bearer <토큰>`. DB에는 토큰의 SHA-256만 저장.
 - 상태를 바꾸는 요청은 `reqId`(8~64자, 영문·숫자·`_-`)를 함께 보내면 같은 요청이 두 번 와도 한 번만 처리하고 처음 응답을 돌려준다(`replay: true`). 동시 요청은 상어 행의 `version`으로 충돌을 막고 최대 5번 재시도, 그래도 안 되면 409 `busy`.
@@ -110,7 +115,7 @@
 ## 광고 (AdMob 보상형, 2026-10-19 테스트 ID로 구현)
 
 - 흐름: 화면 [광고 보기] → 앱 안이면 `SharkAds.postMessage({type:'rewarded', reqId, userId})` → Flutter `lib/ads.dart`(`AdsService`)가 보상형 광고 재생(동의 UMP → SDK 초기화 → 광고 1개 미리 로드) → `window.__sharkAdResult({status: earned|dismissed|failed|busy, message, reqId})`. 웹 브라우저(앱 아님)는 3초 목업.
-- 지급: 지금 화면은 브라우저 저장소라 `grantAdReward()`가 로컬로 지급. 화면을 서버로 전환(④)할 때 `index.html`의 광고 보상 주석대로 바꾼다 — `ADS_MODE` `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 몇 번 다시 읽어 `player.ads.last`가 바뀌었는지 확인. 광고 요청에 `userId`=플레이어 ID 필수(SSV가 이 값으로 지급).
+- 지급은 서버가 한다(`grantAdReward(reqId)`): `ADS_MODE`(`/api/config`의 `adsMode`)가 `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 1.5초 간격으로 최대 8번 다시 읽어 `player.ads.last`가 바뀌었는지 확인. 광고 요청에 `userId`=플레이어 ID(`AUTH.playerId`)를 넣는다(SSV가 이 값으로 지급).
 - 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
 - 테스트 ID(구글 공개): 앱 ID는 `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`, setup이 AndroidManifest·Info.plist에 넣음), 보상형 광고 단위는 `flutter_app/lib/config.dart`(`kRewardedUnitAndroid`/`kRewardedUnitIos`). 안드로이드 minSdk 23 이상으로 맞춤.
 - **실제 광고로 바꿀 때 체크리스트**: ① AdMob 가입·앱 등록·보상형 광고 단위 생성 ② 위 4개 ID 교체 후 `dart run tool/setup.dart` 다시 실행 ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력 ④ `ADS_MODE`를 `ssv`로 ⑤ 저장소 루트에 `app-ads.txt`(AdMob이 알려 주는 한 줄) 추가 ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).

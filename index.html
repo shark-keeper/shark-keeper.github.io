@@ -228,6 +228,7 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
     <p class="sub">살았던 모든 상어가 여기 남아요.</p>
     <div class="card kv" id="recSummary"></div>
     <div class="card" id="graves"></div>
+    <div class="card" id="notifyCard" hidden></div>
     <div class="card note" id="howto"></div>
     <p class="note" style="text-align:center;margin:6px 0 14px"><a href="privacy.html" style="color:var(--ink-soft)">개인정보처리방침</a></p>
   </div>
@@ -347,6 +348,7 @@ function applyShark(v){
   if(!v){ S.shark=null; return; }
   const { stage, days, growthPerDay:_g, cdLeftMs, foodLeftMs, ...sh } = v;
   S.shark=sh;
+  syncNotify();
 }
 async function ensureAuth(){
   if(AUTH&&AUTH.token) return;
@@ -816,6 +818,7 @@ function renderRank(){
 }
 function renderRec(){
   const sh=S.shark;
+  renderNotifyCard();
   $('recSummary').innerHTML=`<div><small>현재 상어</small><b class="num">${sh&&sh.alive?sh.len.toFixed(1)+'cm':'-'}</b></div><div><small>역대 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div>
     <div><small>키운 상어</small><b class="num">${S.graves.length+(sh&&sh.alive?1:0)}마리</b></div><div><small>최장 생존</small><b class="num">${Math.max(0,...S.graves.map(g=>g.days),sh&&sh.alive?daysAlive(sh):0)}일</b></div>`;
   $('graves').innerHTML= S.graves.length ? '<b style="font-family:var(--f-display);font-weight:400">추억의 바다</b>'+S.graves.map(g=>`<div class="grave"><span class="stone">${pxIcon('grave',30)}</span><div><b>${esc(g.name)}</b> · <span class="num">${g.len.toFixed(1)}cm · ${g.days}일</span><div class="note">${g.reason}</div></div></div>`).join('')
@@ -894,6 +897,65 @@ function showDeath(){
   });
 }
 $('againBtn').onclick=()=>{ $('ovDeath').hidden=true; showStart(true); };
+
+/* ===== 알림 (앱 전용, 기기 안 예약 알림) =====
+   서버 푸시가 아니라 앱(Flutter)이 기기에서 예약해 두는 알림이다. 정산은 결정적이라, 지금 상태에서
+   "아무것도 하지 않으면" 앞으로 48시간 동안 언제 배고파지고·똥이 쌓이고·아프게 되는지 화면에서 미리 계산해
+   SharkAds 통로로 {type:'notify', items:[{id, at, title, body}]}를 보낸다. 앱은 받을 때마다 예약을 통째로 바꾼다.
+   상태가 바뀔 때(서버 응답마다)·앱을 나갈 때 다시 보낸다. id 1~20을 게임 알림용으로 쓴다. */
+const NOTIFY_KEY='shark-keeper-notify';
+let notifyOn=lsGet(NOTIFY_KEY)!==false;   // 기본 켜짐
+let notifyPerm=null;                      // 앱이 알려 준 권한(true/false), 모르면 null
+const NOTIFY_HUNGRY=25, QUIET_FROM=22, QUIET_TO=8;   // 배고픔 알림 기준, 조용한 시간(밤 10시~아침 8시)
+const hasBatchim=s=>{ const c=String(s).trim().slice(-1).charCodeAt(0); return c>=0xAC00&&c<=0xD7A3&&(c-0xAC00)%28>0; };
+const iga=n=>n+(hasBatchim(n)?'이':'가');   // 조사: 곰이 / 통통이가
+// 급하지 않은 알림이 조용한 시간에 걸리면 아침으로 미룬다
+function quietShift(at){
+  const d=new Date(at), h=d.getHours();
+  if(h<QUIET_FROM&&h>=QUIET_TO) return at;
+  const m=new Date(d); if(h>=QUIET_FROM) m.setDate(m.getDate()+1); m.setHours(QUIET_TO,0,0,0); return m.getTime();
+}
+function planNotify(){
+  const sh0=S.shark; if(!sh0||!sh0.alive||!CFG) return [];
+  const keep=[S.bestLen,S.bestName,S.bestDays];   // 미리 계산하는 동안 기록이 바뀌지 않게
+  const sh=JSON.parse(JSON.stringify(sh0)), nm=sh.name, I=CFG.illness;
+  const t0=now(), stepH=CFG.stepMin/60, end=t0+48*36e5, out=[], seen={};
+  const add=(id,at,title,body,urgent)=>{ if(seen[id]||at<=t0+60e3) return; seen[id]=1; out.push({ id, at:Math.round(urgent?at:quietShift(at)), title, body }); };
+  const was={ hungry:sh.satiety<NOTIFY_HUNGRY, poop3:sh.poop>=3, ill:!!sh.ill, starve:sh.starveH>=CFG.starveDeathH-3 };   // 지금 이미 그런 건 화면에서 보고 있다
+  const illWarn=at=>add(4,at,`${nm}의 병이 위험해요 🚨`,`3시간 안에 낫게 해 주지 않으면 ${iga(nm)} 바다로 떠나요`,true);
+  if(sh.ill) illWarn(sh.ill.deadline-3*36e5);
+  try{
+    for(let t=t0; t<end&&sh.alive; ){
+      t+=CFG.stepMin*6e4; tick(sh,stepH,t);
+      if(!was.hungry&&sh.satiety<NOTIFY_HUNGRY) add(1,t,`${iga(nm)} 배고파해요 🐟`,'먹이를 주러 와 주세요',false);
+      if(!was.poop3&&sh.poop>=3) add(2,t,'똥이 3개나 쌓였어요 💩',`하나 더 쌓이면 ${iga(nm)} 아플 수 있어요. 청소해 주세요`,false);
+      if(!was.ill&&sh.ill&&!seen[3]){ add(3,t,`${iga(nm)} 아파요 🤒`,`쓰다듬기 ${I.petsToCure}번으로 낫게 해 주세요`,true); illWarn(sh.ill.deadline-3*36e5); }
+      if(!was.starve&&sh.starveH>=CFG.starveDeathH-3) add(5,t,`${iga(nm)} 너무 배고파요 🚨`,`3시간 안에 먹이를 주지 않으면 바다로 떠나요`,true);
+    }
+  } finally { [S.bestLen,S.bestName,S.bestDays]=keep; }
+  return out.sort((a,b)=>a.at-b.at);
+}
+let notifyT=null, notifyLast='';
+function syncNotify(now_){
+  if(!inApp()||!booted) return;   // 시작 중에는 보내지 않는다(빈 목록으로 예약이 지워지지 않게)
+  clearTimeout(notifyT);
+  const send=()=>{
+    const msg=JSON.stringify({ type:'notify', items: notifyOn ? planNotify() : [] });
+    if(msg===notifyLast) return; notifyLast=msg;
+    try{ window.SharkAds.postMessage(msg); }catch(e){}
+  };
+  if(now_) send(); else notifyT=setTimeout(send,1500);
+}
+window.__sharkNotifyState=r=>{ notifyPerm=r?!!r.granted:null; if(curTab==='rec') renderNotifyCard(); };
+function renderNotifyCard(){
+  const c=$('notifyCard'); if(!inApp()){ c.hidden=true; return; }
+  c.hidden=false;
+  const off=notifyPerm===false&&notifyOn;
+  c.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><div style="flex:1"><b style="font-family:var(--f-display);font-weight:400">돌봄 알림</b>
+    <div class="note">${off?'휴대폰 설정에서 이 앱의 알림이 꺼져 있어요. 설정 → 앱 → 상어집사 → 알림에서 켜 주세요.':`배고플 때, 똥이 쌓였을 때, 아플 때 알려 드려요. 밤 ${QUIET_FROM-12}시~아침 ${QUIET_TO}시에는 급한 알림만 와요.`}</div></div>
+    <button class="btn-s" id="notifyBtn" aria-pressed="${notifyOn}">${notifyOn?'켜짐':'꺼짐'}</button></div>`;
+  $('notifyBtn').onclick=()=>{ notifyOn=!notifyOn; lsSet(NOTIFY_KEY,notifyOn); notifyLast=''; syncNotify(true); renderNotifyCard(); toast(notifyOn?'돌봄 알림을 켰어요':'돌봄 알림을 껐어요'); };
+}
 
 /* ===== 광고 보상 =====
    - 앱(Flutter) 안: 앱의 SharkAds 통로로 AdMob 보상형 광고를 요청하고, window.__sharkAdResult로 결과를 받는다.
@@ -999,7 +1061,7 @@ async function boot(){
       AUTH=null; lsSet(AUTH_KEY,null); await ensureAuth(); await refreshMe();
     }
   }catch(e){ return showNetError(); }
-  booted=true;
+  booted=true; syncNotify();
   if(S.shark){ settle(); render(); if(S.shark.alive) say(S.shark.satiety<40?'왔어요? 배고팠어요…':'다시 와 줘서 고마워요!'); refreshRank('alive'); }
   else showStart(false);
 }
@@ -1010,7 +1072,8 @@ setInterval(()=>{ if(booted&&S.shark&&S.shark.alive&&curTab==='care'&&(S.shark.f
 // 5분마다 서버와 다시 맞춘다(랭킹·서버에서 바뀐 상태)
 setInterval(()=>{ if(!booted||document.hidden||busy) return; refreshMe().then(render).catch(()=>{}); refreshRank(curTab==='rank'?rkTab:'alive'); },5*6e4);
 // 앱을 다시 열었을 때(백그라운드 → 화면) 서버에서 지금 상태를 받는다
-document.addEventListener('visibilitychange',()=>{ if(document.hidden||!booted) return;
+document.addEventListener('visibilitychange',()=>{ if(!booted) return;
+  if(document.hidden){ if(S.shark&&S.shark.alive) settle(); syncNotify(true); return; }   // 앱을 나갈 때 알림 예약을 최신으로
   if(S.shark&&S.shark.alive){ settle(); render(); }
   if(!busy) refreshMe().then(()=>{ if(!S.shark&&$('ovStart').hidden&&$('ovDeath').hidden) showStart(true); render(); }).catch(()=>{});
   if(rankStale('alive',6e4)) refreshRank('alive');

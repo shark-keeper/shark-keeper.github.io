@@ -72,6 +72,7 @@
 - 랭킹: 모든 플레이어 공유, 상위 50 + 내 순위. 예시 상어(`makeRivals`)와 "시간 빨리 감기"·"게임 전체 초기화" 테스트 도구는 제거했다(서버 시각으로만 정산). 같은 이름은 살아 있는 상어끼리 서버가 막는다(`name_taken`).
 - 병 안내 팝업을 이미 봤는지는 기기에만 기록(`shark-keeper-ill-seen` = 발병 시각).
 - 로컬에서 화면+서버를 함께 시험할 때: `cd server && npx wrangler dev --local --port 8793`을 띄우고, Playwright에서 `API_BASE` 요청을 로컬로 넘겨(route) `http://localhost:<포트>/?source=app`을 연다(서버 CORS가 localhost 허용). 주소 매개변수로 API 주소를 바꾸는 기능은 토큰 유출 위험이 있어 두지 않는다.
+- **돌봄 알림(2026-10-21)**: 서버 푸시가 아니라 앱이 기기에서 예약하는 알림. 화면의 `planNotify()`가 지금 상태를 복사해 48시간을 `tick`으로 미리 정산하고 처음 생기는 때를 찾는다 — id 1 배고픔(배부름 25 미만), 2 똥 3개, 3 병 걸림, 4 병 사망 3시간 전, 5 굶주림 사망 3시간 전(지금 이미 그런 상태는 제외). 1·2는 밤 10시~아침 8시면 아침 8시로 미룸(`quietShift`). `syncNotify()`가 `SharkAds`로 `{type:'notify', items}`를 보낸다(서버 응답마다 1.5초 모아서, 앱을 나갈 때는 즉시, 시작 중엔 보내지 않음). 앱(`flutter_app/lib/notifications.dart`)은 받을 때마다 id 1~20 예약을 통째로 바꾸고 `window.__sharkNotifyState({granted})`로 권한을 알려 준다. 기록 탭 "돌봄 알림" 카드에서 켜고 끔(localStorage `shark-keeper-notify`, 기본 켜짐). 정산 규칙이 바뀌면 알림 시각도 같은 `tick`으로 계산되므로 따로 고칠 것 없음.
 - 개인정보처리방침: `privacy.html`(https://shark-keeper.github.io/privacy.html, 기록 탭 맨 아래 링크). 문의 이메일은 아직 '준비 중' — 정해지면 `#contact`를 채운다.
 
 ## 다음 단계 후보

@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'ads.dart';
 import 'config.dart';
+import 'notifications.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,9 +60,10 @@ class _GameScreenState extends State<GameScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(kPageColor)
       ..enableZoom(false)
-      // 웹 게임 ↔ 앱 광고 통로: 웹이 SharkAds.postMessage('{"type":"rewarded","reqId":…,"userId":…}')를 보내면
-      // 앱이 보상형 광고를 재생하고 window.__sharkAdResult({status, message, reqId})로 결과를 돌려준다.
-      ..addJavaScriptChannel('SharkAds', onMessageReceived: (m) => _onAdMessage(m.message))
+      // 웹 게임 ↔ 앱 통로(SharkAds.postMessage(JSON)):
+      //  - {"type":"rewarded","reqId":…,"userId":…} → 보상형 광고 재생 → window.__sharkAdResult({status, message, reqId})
+      //  - {"type":"notify","items":[{id, at, title, body}]} → 기기 예약 알림을 통째로 바꿈 → window.__sharkNotifyState({granted})
+      ..addJavaScriptChannel('SharkAds', onMessageReceived: (m) => _onMessage(m.message))
       ..setNavigationDelegate(NavigationDelegate(
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
@@ -87,14 +89,35 @@ class _GameScreenState extends State<GameScreen> {
       ..loadRequest(Uri.parse(kGameUrl));
   }
 
-  Future<void> _onAdMessage(String raw) async {
+  Future<void> _onMessage(String raw) async {
     Map<String, dynamic> msg;
     try {
       msg = jsonDecode(raw) as Map<String, dynamic>;
     } catch (_) {
       return;
     }
-    if (msg['type'] != 'rewarded') return;
+    switch (msg['type']) {
+      case 'rewarded':
+        return _onAdMessage(msg);
+      case 'notify':
+        return _onNotifyMessage(msg);
+    }
+  }
+
+  Future<void> _onNotifyMessage(Map<String, dynamic> msg) async {
+    final raw = msg['items'];
+    final items = (raw is List ? raw : const []).map(NotifyItem.fromJson).whereType<NotifyItem>().toList();
+    bool? granted;
+    try {
+      granted = await NotificationService.instance.replaceSchedule(items);
+    } catch (_) {
+      return; // 알림 예약 실패는 게임 진행에 영향을 주지 않는다
+    }
+    if (granted == null) return;
+    await _web.runJavaScript('window.__sharkNotifyState && window.__sharkNotifyState(${jsonEncode({'granted': granted})})');
+  }
+
+  Future<void> _onAdMessage(Map<String, dynamic> msg) async {
     final reqId = '${msg['reqId'] ?? ''}';
     final r = await AdsService.instance.showRewarded(
       userId: msg['userId'] as String?,

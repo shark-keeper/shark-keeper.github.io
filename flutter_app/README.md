@@ -6,7 +6,7 @@
 
 ## 처음 설정 (한 번만)
 
-필요: Flutter 3.24 이상, Android Studio(안드로이드), Xcode가 있는 Mac(iOS)
+필요: Flutter 3.38.1 이상(알림 패키지 요구, 첫 빌드는 3.47.7에서 확인), Android Studio(안드로이드), Xcode가 있는 Mac(iOS)
 
 ```bash
 cd flutter_app
@@ -45,11 +45,20 @@ flutter test         # 링크 처리 규칙 테스트
 - **지금은 구글 공개 테스트 ID**라 실제 수익 없이 "Test Ad" 광고가 나온다. 바꾸는 곳: 광고 단위 `lib/config.dart`, 앱 ID `tool/setup.dart`(바꾼 뒤 `dart run tool/setup.dart` 다시 실행).
 - 실제 ID로 바꿀 때 체크리스트는 저장소 루트 `CLAUDE.md`의 "광고" 절 참고(서버 검증 URL, `ADS_MODE`, `app-ads.txt`, 스토어 연결).
 
+## 돌봄 알림 (기기 안 예약 알림, 2026-10-21)
+
+- 서버 푸시(Firebase)가 아니라 **기기에서 예약하는 알림**(`flutter_local_notifications`, `lib/notifications.dart`).
+- 웹 게임이 지금 상태로 앞으로 48시간을 미리 정산해 "배고파짐(배부름 25 미만)·똥 3개·병 걸림·병 사망 3시간 전·굶주림 사망 3시간 전" 시각을 계산하고, `SharkAds` 통로로 `{"type":"notify","items":[{id, at, title, body}]}`를 보낸다. 앱은 받을 때마다 예약(id 1~20)을 통째로 바꾸고, 권한 상태를 `window.__sharkNotifyState({granted})`로 돌려준다.
+- 밤 10시~아침 8시에는 급하지 않은 알림(배고픔·똥)을 아침 8시로 미룬다. 병·사망 위험 알림은 바로 온다.
+- 권한은 상어를 입양해 첫 알림을 예약할 때 묻는다(안드로이드 13+·iOS). 게임 기록 탭에서 켜고 끌 수 있다.
+- 안드로이드 설정: `AndroidManifest.xml`에 `RECEIVE_BOOT_COMPLETED`와 리시버 2개, `build.gradle.kts`에 코어 라이브러리 디슈가링, 알림 아이콘 `res/drawable-*/ic_stat_shark.png`(도트 상어 흰색 실루엣, `res/raw/keep.xml`로 보존). 정확한 시각 알람 권한 없이 `inexactAllowWhileIdle`(몇 분 늦을 수 있음).
+- iOS: `AppDelegate.swift`에서 `UNUserNotificationCenter` 델리게이트 등록(앱을 보고 있을 때도 표시).
+- 시험: 디버그 빌드에서 PC 크롬 `chrome://inspect`로 앱 WebView에 붙어 콘솔에서 `planNotify()`를 실행하면 예약될 시각·문구를 볼 수 있다. 바로 떠 보려면 콘솔에서 `SharkAds.postMessage(JSON.stringify({type:'notify',items:[{id:1,at:Date.now()+90e3,title:'시험',body:'1분 반 뒤 알림'}]}))`을 보내고 앱을 내린다(정확한 시각 방식이 아니라 몇 분 늦을 수 있음).
+
 ### 알아둘 점
 
-- **저장 데이터는 앱과 브라우저가 따로**입니다. 지금 게임은 기기 localStorage에 저장하므로,
-  브라우저에서 키우던 상어는 앱에 보이지 않습니다. 서버 저장(계정)이 생기면 해결됩니다.
-- 앱을 지우면 앱 안의 상어 기록도 함께 지워집니다.
+- 상어는 서버에 저장되고, 기기에는 게스트 토큰만 있다. **앱을 지우면 토큰이 사라져 그 상어를 이어서 키울 수 없다**(계정 연동 전까지).
+- 브라우저(`?source=app`)와 앱은 서로 다른 게스트라 상어도 따로다.
 
 ## 스토어 배포
 

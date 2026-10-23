@@ -6,7 +6,7 @@
         android:label="상어집사"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3934873497580609~3337124010"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -7,10 +7,10 @@ const kOrg = 'com.ohsang.play'; // → 앱 ID: com.ohsang.play.sharkkeeper (스�
 const kProjectName = 'sharkkeeper';   // 밑줄 없이: iOS 번들 ID와 안드로이드 앱 ID가 똑같이 com.ohsang.play.sharkkeeper가 된다
 const kDisplayName = '상어집사'; // 홈 화면 아이콘 아래 표시되는 이름
 
-// AdMob 앱 ID — 지금은 구글 공개 **테스트 앱 ID**. AdMob 가입 후 내 앱 ID로 바꾸고 이 스크립트를 다시 실행한다.
+// AdMob 앱 ID — 내 AdMob 계정(pub-3934873497580609)의 앱 ID(2026-10-24 등록). 바꾸면 이 스크립트를 다시 실행한다.
 // (광고 단위 ID는 lib/config.dart의 kRewardedUnitAndroid / kRewardedUnitIos)
-const kAdmobAppIdAndroid = 'ca-app-pub-3940256099942544~3347511713';
-const kAdmobAppIdIos = 'ca-app-pub-3940256099942544~1458002511';
+const kAdmobAppIdAndroid = 'ca-app-pub-3934873497580609~3337124010';
+const kAdmobAppIdIos = 'ca-app-pub-3934873497580609~3361174748';
 
 Future<void> run(String cmd, List<String> args) async {
   stdout.writeln('\n▶ $cmd ${args.join(' ')}');

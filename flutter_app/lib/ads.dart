@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'config.dart';
@@ -28,13 +29,14 @@ class AdsService {
   RewardedAd? _ready;
   bool _loading = false;
   bool _showing = false;
-  bool _initialized = false;
+  Future<void>? _initFuture;
 
   String get _unitId => Platform.isIOS ? kRewardedUnitIos : kRewardedUnitAndroid;
 
-  Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
+  /// 여러 곳(보상형·배너)에서 불러도 한 번만 실행되고, 모두 초기화가 끝날 때까지 기다린다
+  Future<void> init() => _initFuture ??= _init();
+
+  Future<void> _init() async {
     await _requestConsent();
     await MobileAds.instance.initialize();
     _preload();
@@ -86,7 +88,7 @@ class AdsService {
 
   Future<AdResult> showRewarded({String? userId, String? customData}) async {
     if (_showing) return const AdResult('busy', '광고가 이미 재생 중이에요');
-    if (!_initialized) await init();
+    await init();
     _showing = true;
     try {
       final ad = await _getAd();
@@ -113,5 +115,79 @@ class AdsService {
       _showing = false;
       _preload(); // 다음 광고를 미리 불러 둔다
     }
+  }
+}
+
+/// 화면 맨 아래 고정 배너 (게임 탭 바 아래).
+/// 광고를 불러오기 전·실패했을 때는 자리를 차지하지 않는다(빈 칸이 남지 않게).
+/// 게임 탭 바와 붙지 않도록 위쪽에 얇은 간격을 둔다(실수 클릭 방지).
+class BottomBanner extends StatefulWidget {
+  const BottomBanner({super.key});
+
+  @override
+  State<BottomBanner> createState() => _BottomBannerState();
+}
+
+class _BottomBannerState extends State<BottomBanner> {
+  BannerAd? _ad;
+  bool _loaded = false;
+  int _retries = 0;
+
+  String get _unitId => Platform.isIOS ? kBannerUnitIos : kBannerUnitAndroid;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    await AdsService.instance.init();
+    if (!mounted) return;
+    final ad = BannerAd(
+      adUnitId: _unitId,
+      size: AdSize.banner, // 320x50
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _loaded = true);
+        },
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+          if (!mounted) return;
+          setState(() {
+            _ad = null;
+            _loaded = false;
+          });
+          // 채울 광고가 없을 때(no fill) 등: 조금 뒤 다시 시도 (최대 3번)
+          if (_retries++ < 3) Future.delayed(Duration(seconds: 30 * _retries), () { if (mounted) _load(); });
+        },
+      ),
+    );
+    _ad = ad;
+    await ad.load();
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ad = _ad;
+    if (!_loaded || ad == null) return const SizedBox.shrink();
+    return Container(
+      color: kPageColor,
+      padding: const EdgeInsets.only(top: 6),
+      alignment: Alignment.center,
+      height: ad.size.height.toDouble() + 6,
+      child: SizedBox(
+        width: ad.size.width.toDouble(),
+        height: ad.size.height.toDouble(),
+        child: AdWidget(ad: ad),
+      ),
+    );
   }
 }

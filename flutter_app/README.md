@@ -41,6 +41,7 @@ flutter test         # 링크 처리 규칙 테스트
 
 ## 광고 (AdMob 보상형)
 
+- 화면 맨 아래(게임 탭 바 아래)에 배너 광고가 고정된다(`BottomBanner`).
 - `lib/ads.dart`가 보상형 광고를 재생한다. 웹 게임이 `SharkAds` 통로로 요청하면 광고를 띄우고 결과를 웹에 돌려준다.
 - **지금은 구글 공개 테스트 ID**라 실제 수익 없이 "Test Ad" 광고가 나온다. 바꾸는 곳: 광고 단위 `lib/config.dart`, 앱 ID `tool/setup.dart`(바꾼 뒤 `dart run tool/setup.dart` 다시 실행).
 - 실제 ID로 바꿀 때 체크리스트는 저장소 루트 `CLAUDE.md`의 "광고" 절 참고(서버 검증 URL, `ADS_MODE`, `app-ads.txt`, 스토어 연결).

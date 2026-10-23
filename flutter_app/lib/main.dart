@@ -152,12 +152,19 @@ class _GameScreenState extends State<GameScreen> {
       },
       child: Scaffold(
         body: SafeArea(
-          child: Stack(
-            fit: StackFit.expand,
+          child: Column(
             children: [
-              WebViewWidget(controller: _web),
-              if (!_firstLoadDone && !_failed) _LoadingView(progress: _progress),
-              if (_failed) _OfflineView(onRetry: _retry),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    WebViewWidget(controller: _web),
+                    if (!_firstLoadDone && !_failed) _LoadingView(progress: _progress),
+                    if (_failed) _OfflineView(onRetry: _retry),
+                  ],
+                ),
+              ),
+              const BottomBanner(), // 화면 맨 아래 고정 배너(게임 탭 바 아래)
             ],
           ),
         ),

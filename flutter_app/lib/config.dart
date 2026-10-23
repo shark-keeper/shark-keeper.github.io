@@ -28,6 +28,17 @@ String get kRewardedUnitAndroid =>
 String get kRewardedUnitIos =>
     kReleaseMode && kMyRewardedUnitIos.isNotEmpty ? kMyRewardedUnitIos : _testRewardedUnitIos;
 
+/// 하단 배너 광고 단위(AdMob 콘솔 → 광고 단위 → 배너). 규칙은 위 보상형과 같다(비어 있거나 디버그 빌드면 테스트 광고).
+const kMyBannerUnitAndroid = '';
+const kMyBannerUnitIos = '';
+
+const _testBannerUnitAndroid = 'ca-app-pub-3940256099942544/6300978111';   // 구글 공개 테스트 ID
+const _testBannerUnitIos = 'ca-app-pub-3940256099942544/2934735716';
+String get kBannerUnitAndroid =>
+    kReleaseMode && kMyBannerUnitAndroid.isNotEmpty ? kMyBannerUnitAndroid : _testBannerUnitAndroid;
+String get kBannerUnitIos =>
+    kReleaseMode && kMyBannerUnitIos.isNotEmpty ? kMyBannerUnitIos : _testBannerUnitIos;
+
 const kPageColor = Color(0xFFE7F6FD);
 const kSeaColor = Color(0xFF1B8FD6);
 const kInkColor = Color(0xFF0D3557);

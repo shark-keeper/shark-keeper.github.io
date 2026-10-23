@@ -18,8 +18,8 @@ const kAppTitle = '상어집사';
 /// - 실제 광고 단위를 넣고 서버 측 검증 URL을 설정한 뒤 서버 wrangler.jsonc의 ADS_MODE를 "ssv"로 바꾼다
 ///   (ssv 모드에서는 테스트 광고가 서버 콜백을 보내지 않으므로 디버그 빌드에서는 보상이 지급되지 않는다).
 /// - 앱 ID는 tool/setup.dart(AndroidManifest.xml·Info.plist에 들어감).
-const kMyRewardedUnitAndroid = '';
-const kMyRewardedUnitIos = '';
+const kMyRewardedUnitAndroid = 'ca-app-pub-3934873497580609/1177156695';
+const kMyRewardedUnitIos = 'ca-app-pub-3934873497580609/1368814106';
 
 const _testRewardedUnitAndroid = 'ca-app-pub-3940256099942544/5224354917';   // 구글 공개 테스트 ID
 const _testRewardedUnitIos = 'ca-app-pub-3940256099942544/1712485313';

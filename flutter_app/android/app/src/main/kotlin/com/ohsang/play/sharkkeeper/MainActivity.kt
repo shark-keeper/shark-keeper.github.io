@@ -1,4 +1,4 @@
-package io.github.sharkkeeper
+package com.ohsang.play.sharkkeeper
 
 import io.flutter.embedding.android.FlutterActivity
 

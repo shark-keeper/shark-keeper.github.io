@@ -15,7 +15,7 @@ dart run tool/setup.dart
 
 이 스크립트가 하는 일:
 
-1. `flutter create`로 `android/`, `ios/` 폴더 생성 (앱 ID `io.github.sharkkeeper`)
+1. `flutter create`로 `android/`, `ios/` 폴더 생성 (앱 ID `com.ohsang.play.sharkkeeper`)
 2. 앱 이름을 `상어집사`로 설정, 안드로이드 릴리스 빌드에 인터넷 권한 추가
 3. 앱 아이콘(`flutter_launcher_icons`), 스플래시(`flutter_native_splash`) 생성
 

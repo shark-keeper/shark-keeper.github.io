@@ -3,8 +3,8 @@
 // 다시 실행해도 안전하다(이미 있는 파일은 flutter create가 덮어쓰지 않는다).
 import 'dart:io';
 
-const kOrg = 'io.github'; // → 앱 ID: io.github.sharkkeeper (스토어 출시 후에는 바꿀 수 없음)
-const kProjectName = 'sharkkeeper';   // 밑줄 없이: iOS 번들 ID와 안드로이드 앱 ID가 똑같이 io.github.sharkkeeper가 된다
+const kOrg = 'com.ohsang.play'; // → 앱 ID: com.ohsang.play.sharkkeeper (스토어 출시 후에는 바꿀 수 없음)
+const kProjectName = 'sharkkeeper';   // 밑줄 없이: iOS 번들 ID와 안드로이드 앱 ID가 똑같이 com.ohsang.play.sharkkeeper가 된다
 const kDisplayName = '상어집사'; // 홈 화면 아이콘 아래 표시되는 이름
 
 // AdMob 앱 ID — 지금은 구글 공개 **테스트 앱 ID**. AdMob 가입 후 내 앱 ID로 바꾸고 이 스크립트를 다시 실행한다.

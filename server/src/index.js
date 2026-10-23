@@ -284,7 +284,8 @@ async function handle(req, env) {
   // AdMob 보상형 광고 서버 측 검증(SSV) 콜백 — AdMob 서버가 호출한다(브라우저·앱이 아님)
   // user_id = 플레이어 ID, transaction_id로 중복 지급을 막는다. 처리 결과와 상관없이 서명이 맞으면 200을 돌려준다
   // (200이 아니면 구글이 최대 5번 다시 보낸다).
-  if (route === 'GET /api/admob/ssv') {
+  // GET이 정상이지만, 확인 요청이 HEAD·POST로 와도 같은 방식으로 처리한다(쿼리는 주소에 있다)
+  if (/^(GET|HEAD|POST) \/api\/admob\/ssv$/.test(route)) {
     const q = url.search;
     // 기록용: 서명은 앞부분만, 사용자 ID는 일부만 남긴다
     const brief = q.replace(/(signature=)([^&]{12})[^&]*/, '$1$2…').replace(/(user_id=)([^&]{8})[^&]*/, '$1$2…').slice(0, 400);
@@ -405,16 +406,29 @@ export async function settleStale(env) {
   return results.length;
 }
 
+async function respond(req, env) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
+  try {
+    return json(req, await handle(req, env));
+  } catch (e) {
+    if (e instanceof HttpError) return json(req, { ok: false, error: e.code, msg: e.message }, e.status);
+    console.error(e);
+    return json(req, { ok: false, error: 'server_error', msg: '서버에 문제가 생겼어요' }, 500);
+  }
+}
+
 export default {
-  async fetch(req, env) {
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
-    try {
-      return json(req, await handle(req, env));
-    } catch (e) {
-      if (e instanceof HttpError) return json(req, { ok: false, error: e.code, msg: e.message }, e.status);
-      console.error(e);
-      return json(req, { ok: false, error: 'server_error', msg: '서버에 문제가 생겼어요' }, 500);
+  async fetch(req, env, ctx) {
+    const path = new URL(req.url).pathname;
+    const res = await respond(req, env);
+    // AdMob 콜백 주소로 들어온 요청은 방식·상태·보낸 쪽을 따로 남긴다(콜백이 서버까지 오는지 확인용)
+    if (path.startsWith('/api/admob/ssv') && !path.startsWith('/api/admob/ssv-log')) {
+      const detail = `${req.method} ${path} → ${res.status} | ua=${(req.headers.get('User-Agent') || '').slice(0, 120)} | q=${new URL(req.url).search.length}자`;
+      console.log('ssv arrive', detail);
+      ctx.waitUntil(ensureSchema(env).then(() => env.DB.prepare('INSERT INTO ssv_log (at, result, detail) VALUES (?, ?, ?)')
+        .bind(Date.now(), 'arrive', detail).run()).catch(() => {}));
     }
+    return res;
   },
   async scheduled(event, env, ctx) {
     ctx.waitUntil(settleStale(env).then(n => console.log(`settled ${n} sharks`)));

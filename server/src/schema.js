@@ -50,6 +50,10 @@ const MIGRATIONS = [
   // v2: 광고 쿨타임 — 마지막 광고 보상 시각
   [
     `ALTER TABLE players ADD COLUMN ad_last INTEGER NOT NULL DEFAULT 0`
+  ],
+  // v3: AdMob 서버 측 검증(SSV) 콜백 기록 — 설정 문제를 찾기 위해 최근 것만 남긴다(cron이 7일 지난 것 정리)
+  [
+    `CREATE TABLE IF NOT EXISTS ssv_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, result TEXT NOT NULL, detail TEXT)`
   ]
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;

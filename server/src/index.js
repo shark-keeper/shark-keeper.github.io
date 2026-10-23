@@ -285,22 +285,44 @@ async function handle(req, env) {
   // user_id = 플레이어 ID, transaction_id로 중복 지급을 막는다. 처리 결과와 상관없이 서명이 맞으면 200을 돌려준다
   // (200이 아니면 구글이 최대 5번 다시 보낸다).
   if (route === 'GET /api/admob/ssv') {
+    const q = url.search;
+    // 기록용: 서명은 앞부분만, 사용자 ID는 일부만 남긴다
+    const brief = q.replace(/(signature=)([^&]{12})[^&]*/, '$1$2…').replace(/(user_id=)([^&]{8})[^&]*/, '$1$2…').slice(0, 400);
+    const log = (result, detail = '') => env.DB.prepare('INSERT INTO ssv_log (at, result, detail) VALUES (?, ?, ?)')
+      .bind(Date.now(), result, String(detail).slice(0, 600)).run().catch(() => {});
+    const hasUser = /[?&]user_id=[^&]+/.test(q);
     let v;
-    try { v = await verifyAdmobSsv(url.search); }
-    catch (e) { console.error('ssv verify error', String(e && e.stack || e), url.search.slice(0, 300)); throw e; }
-    if (!v.ok) { console.warn('ssv rejected', v.reason, url.search.slice(0, 300)); throw new HttpError(403, 'ssv_' + v.reason); }
-    console.log('ssv ok', v.params.user_id ? 'user' : 'no_user', v.params.transaction_id || '');
+    try { v = await verifyAdmobSsv(q); }
+    catch (e) {
+      console.error('ssv verify error', String(e && e.stack || e), brief);
+      await log('error', String(e && e.message || e) + ' | ' + brief);
+      if (!hasUser) return { ok: false, error: 'verify_error' };   // 콘솔의 "URL 확인" 같은 시험 요청: 200으로 답한다
+      throw e;                                                      // 실제 보상 콜백: 500 → 구글이 다시 보낸다
+    }
+    if (!v.ok) {
+      // 서명이 틀리거나 없으면 아무것도 지급하지 않는다. 다시 보내도 결과가 같으니 200으로 답한다.
+      console.warn('ssv rejected', v.reason, brief);
+      await log('rejected:' + v.reason, brief);
+      return { ok: false, error: 'ssv_' + v.reason };
+    }
     const { user_id: uid, transaction_id: tx } = v.params;
-    if (!uid || !tx) return { ok: false, error: 'no_user' };          // AdMob 콘솔의 "확인" 테스트 요청 등
+    if (!uid || !tx) { await log('ok:no_user', brief); return { ok: false, error: 'no_user' }; }   // 콘솔의 "URL 확인" 시험 요청 등
     const p = await env.DB.prepare('SELECT * FROM players WHERE id = ?').bind(uid).first();
-    if (!p) return { ok: false, error: 'no_player' };
+    if (!p) { await log('ok:no_player', brief); return { ok: false, error: 'no_player' }; }
     try {
       const r = await grantAd(env, p, 'ssv_' + tx.slice(0, 56));
+      await log(r.ok ? 'ok:granted' : 'ok:' + (r.error || 'not_granted'), brief);
       return { ok: r.ok, error: r.error };
     } catch (e) {
-      if (e instanceof HttpError && e.status < 500) return { ok: false, error: e.code };   // 상어 없음 등: 다시 보내도 소용없음
+      if (e instanceof HttpError && e.status < 500) { await log('ok:' + e.code, brief); return { ok: false, error: e.code }; }   // 상어 없음 등: 다시 보내도 소용없음
       throw e;
     }
+  }
+
+  // SSV 콜백 최근 기록(설정 확인용) — 서명 앞부분·사용자 ID 일부만 보인다
+  if (route === 'GET /api/admob/ssv-log') {
+    const { results } = await env.DB.prepare('SELECT at, result, detail FROM ssv_log ORDER BY id DESC LIMIT 10').all();
+    return { ok: true, rows: results.map(r => ({ at: new Date(r.at + 9 * 36e5).toISOString().replace('T', ' ').slice(0, 19) + ' KST', result: r.result, detail: r.detail })) };
   }
 
   // 랭킹 ?type=alive(지금 살아 있는 상어) | all(플레이어별 역대 최고) — 토큰이 있으면 내 순위도 함께
@@ -378,6 +400,7 @@ export async function settleStale(env) {
     stmts.push(saveStmt(env, row, t), bestStmt(env, r.player_id, row.sh, t));
   }
   stmts.push(env.DB.prepare('DELETE FROM requests WHERE created_at < ?').bind(t - 2 * 864e5));
+  stmts.push(env.DB.prepare('DELETE FROM ssv_log WHERE at < ?').bind(t - 7 * 864e5));
   await env.DB.batch(stmts);
   return results.length;
 }

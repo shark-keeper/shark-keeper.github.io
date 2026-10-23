@@ -105,7 +105,8 @@
 | `POST /api/shark` `{name}` | 입양(이름 1~10자, 살아 있는 상어끼리 이름 중복 불가, 플레이어당 살아 있는 상어 1마리) |
 | `POST /api/shark/action` `{action}` | `feed`/`swim`/`pet`/`clean`. 응답: `ok`, `msg`(말풍선), `fx`(이모지), `fx2`(`pellets`/`blood`), `cls`(애니메이션), `toasts[]`, `effect`(악효과), `error`(`cooldown`+`cdLeftMs`, `dead`), `shark` |
 | `POST /api/shark/ad` | 광고 보상(앱이 직접 보고): 먹이 +10. 먹이 10개 이상이면 `food_full`, 쿨타임 중이면 `ad_cooldown`+`cdLeftMs`. 응답·`/api/me`의 `ads` = `{last, cdMin, food, leftMs, today}`. 광고 시청을 서버가 확인 못 하는 경로라 `ADS_MODE`가 `ssv`면 403 `ad_unverified` |
-| `GET /api/admob/ssv` | **AdMob 서버가 호출하는** 보상형 광고 서버 측 검증 콜백. 서명(ECDSA P-256, 구글 공개키 `verifier-keys.json`, 12시간 캐시)을 확인하고 `user_id`(=플레이어 ID)에게 지급, `transaction_id`로 중복 방지(`requests`에 `ssv_<tx>`). 서명이 틀리면 403, 맞으면 결과와 상관없이 200(구글 재전송 방지) |
+| `GET /api/admob/ssv` | **AdMob 서버가 호출하는** 보상형 광고 서버 측 검증 콜백. 서명(ECDSA P-256, 구글 공개키 `verifier-keys.json`, 12시간 캐시)을 확인하고 `user_id`(=플레이어 ID)에게 지급, `transaction_id`로 중복 방지(`requests`에 `ssv_<tx>`). 서명이 틀리거나 없으면 지급 없이 200(`ssv_bad_signature` 등), 서명이 맞으면 결과와 상관없이 200(구글 재전송 방지). 키를 못 받는 등 서버 오류는 실제 보상 콜백이면 500(구글이 다시 보냄), `user_id` 없는 시험 요청이면 200. 모든 콜백은 `ssv_log` 테이블(v3, 7일 보관)에 기록 |
+| `GET /api/admob/ssv-log` | SSV 콜백 최근 10건(시각·결과·요청 앞부분) — AdMob "URL 확인"이 실패할 때 원인 확인용 |
 | `GET /api/rank?type=alive\|all` | 살아 있는 상어 / 플레이어별 역대 최고, 상위 50 + 토큰이 있으면 `me`(내 순위) |
 | `POST /api/import` `{shark, offsetMs}` | 브라우저(localStorage) 상어를 서버로 한 번 옮김. 값은 범위를 잘라서 받음(길이는 나이 대비 최대 성장량까지, 빨리 감기 시간은 되돌림) |
 

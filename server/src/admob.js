@@ -36,7 +36,7 @@ export function derToRaw(der) {
 async function loadKeys(fetchFn, now, force = false) {
   if (!force && keyCache.keys && now - keyCache.at < KEY_TTL_MS) return keyCache.keys;
   const res = await fetchFn(ADMOB_KEYS_URL, { cf: { cacheTtl: 3600 } });
-  if (!res.ok) throw new Error('keys_fetch_failed');
+  if (!res.ok) throw new Error('keys_fetch_failed ' + res.status);
   const j = await res.json();
   const keys = new Map();
   for (const k of j.keys || []) {
@@ -49,7 +49,7 @@ async function loadKeys(fetchFn, now, force = false) {
 export function _resetKeyCache() { keyCache = { at: 0, keys: null }; }
 
 /* rawQuery: '?' 뒤의 원본 쿼리 문자열. 성공하면 { ok:true, params }, 실패하면 { ok:false, reason } */
-export async function verifyAdmobSsv(rawQuery, fetchFn = fetch, now = Date.now()) {
+export async function verifyAdmobSsv(rawQuery, fetchFn = (u, o) => globalThis.fetch(u, o), now = Date.now()) {
   const q = String(rawQuery || '').replace(/^\?/, '');
   const at = q.indexOf('&signature=');
   if (at < 0) return { ok: false, reason: 'no_signature' };

@@ -285,8 +285,11 @@ async function handle(req, env) {
   // user_id = 플레이어 ID, transaction_id로 중복 지급을 막는다. 처리 결과와 상관없이 서명이 맞으면 200을 돌려준다
   // (200이 아니면 구글이 최대 5번 다시 보낸다).
   if (route === 'GET /api/admob/ssv') {
-    const v = await verifyAdmobSsv(url.search);
-    if (!v.ok) throw new HttpError(403, 'ssv_' + v.reason);
+    let v;
+    try { v = await verifyAdmobSsv(url.search); }
+    catch (e) { console.error('ssv verify error', String(e && e.stack || e), url.search.slice(0, 300)); throw e; }
+    if (!v.ok) { console.warn('ssv rejected', v.reason, url.search.slice(0, 300)); throw new HttpError(403, 'ssv_' + v.reason); }
+    console.log('ssv ok', v.params.user_id ? 'user' : 'no_user', v.params.transaction_id || '');
     const { user_id: uid, transaction_id: tx } = v.params;
     if (!uid || !tx) return { ok: false, error: 'no_user' };          // AdMob 콘솔의 "확인" 테스트 요청 등
     const p = await env.DB.prepare('SELECT * FROM players WHERE id = ?').bind(uid).first();

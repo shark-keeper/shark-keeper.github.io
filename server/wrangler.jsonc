@@ -18,6 +18,6 @@
   "triggers": { "crons": ["7 * * * *"] },
   // 광고 보상 모드: "test" = 앱이 보고한 보상도 인정(테스트 광고 ID·웹 목업용)
   //                 "ssv"  = AdMob 서버 검증(/api/admob/ssv)으로만 지급 — 실제 광고 ID로 출시할 때 바꾼다
-  "vars": { "ADS_MODE": "test" }
+  "vars": { "ADS_MODE": "ssv" }
   // 테이블은 src/schema.js가 첫 요청 때 자동으로 만든다
 }

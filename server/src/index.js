@@ -370,6 +370,19 @@ async function handle(req, env) {
     return { ok: true, now: t, type, rows, me };
   }
 
+  // 내 데이터 전부 삭제 { confirm: 'delete' } — 플레이어·상어(떠난 상어 기록 포함)·요청 기록. 되돌릴 수 없다.
+  // (Google Play 데이터 삭제 정책: 앱 안에서 직접 삭제할 수 있어야 한다)
+  if (route === 'POST /api/me/delete') {
+    const p = await auth(req, env); const b = await readBody(req);
+    if (b.confirm !== 'delete') throw new HttpError(400, 'bad_confirm', '삭제 확인 값이 필요해요');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM sharks WHERE player_id = ?').bind(p.id),
+      env.DB.prepare('DELETE FROM requests WHERE player_id = ?').bind(p.id),
+      env.DB.prepare('DELETE FROM players WHERE id = ?').bind(p.id),
+    ]);
+    return { ok: true, deleted: true };
+  }
+
   // 브라우저에 있던 상어를 서버로 옮기기 (서버에 상어 기록이 하나도 없을 때 한 번만) { shark, offsetMs?, reqId? }
   if (route === 'POST /api/import') {
     const p = await auth(req, env); const b = await readBody(req); const reqId = reqIdOf(b);

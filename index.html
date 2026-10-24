@@ -129,6 +129,7 @@ button:focus-visible,input:focus-visible{outline:3px dashed var(--accent);outlin
 .ad button{background:var(--ink);color:#fff;padding:5px 10px;font-size:13px;white-space:nowrap;--bc:#061a2c;box-shadow:var(--pxb2)}
 .ad button:disabled{opacity:.4}
 .btn-s{background:var(--card);padding:4px 8px;font-family:var(--f-display);font-size:11px;box-shadow:var(--pxb2);--bc:var(--ink-soft)}
+.btn-s.arm{background:var(--bad);color:#fff;--bc:var(--bad)}
 
 /* tabs */
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);border-top:3px solid var(--ink);background:var(--card);padding-bottom:env(safe-area-inset-bottom,0px);
@@ -230,7 +231,8 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
     <div class="card" id="graves"></div>
     <div class="card" id="notifyCard" hidden></div>
     <div class="card note" id="howto"></div>
-    <p class="note" style="text-align:center;margin:6px 0 14px"><a href="privacy.html" style="color:var(--ink-soft)">개인정보처리방침</a></p>
+    <div class="card" id="dataCard"></div>
+    <p class="note" style="text-align:center;margin:6px 0 14px"><a href="privacy.html" style="color:var(--ink-soft)">개인정보처리방침</a> · <a href="delete-data.html" style="color:var(--ink-soft)">데이터 삭제 안내</a></p>
   </div>
 
   <nav class="tabs" role="tablist">
@@ -818,7 +820,7 @@ function renderRank(){
 }
 function renderRec(){
   const sh=S.shark;
-  renderNotifyCard();
+  renderNotifyCard(); renderDataCard();
   $('recSummary').innerHTML=`<div><small>현재 상어</small><b class="num">${sh&&sh.alive?sh.len.toFixed(1)+'cm':'-'}</b></div><div><small>역대 최고</small><b class="num">${S.bestLen.toFixed(1)}cm</b></div>
     <div><small>키운 상어</small><b class="num">${S.graves.length+(sh&&sh.alive?1:0)}마리</b></div><div><small>최장 생존</small><b class="num">${Math.max(0,...S.graves.map(g=>g.days),sh&&sh.alive?daysAlive(sh):0)}일</b></div>`;
   $('graves').innerHTML= S.graves.length ? '<b style="font-family:var(--f-display);font-weight:400">추억의 바다</b>'+S.graves.map(g=>`<div class="grave"><span class="stone">${pxIcon('grave',30)}</span><div><b>${esc(g.name)}</b> · <span class="num">${g.len.toFixed(1)}cm · ${g.days}일</span><div class="note">${g.reason}</div></div></div>`).join('')
@@ -955,6 +957,33 @@ function renderNotifyCard(){
     <div class="note">${off?'휴대폰 설정에서 이 앱의 알림이 꺼져 있어요. 설정 → 앱 → 상어집사 → 알림에서 켜 주세요.':`배고플 때, 똥이 쌓였을 때, 아플 때 알려 드려요. 밤 ${QUIET_FROM-12}시~아침 ${QUIET_TO}시에는 급한 알림만 와요.`}</div></div>
     <button class="btn-s" id="notifyBtn" aria-pressed="${notifyOn}">${notifyOn?'켜짐':'꺼짐'}</button></div>`;
   $('notifyBtn').onclick=()=>{ notifyOn=!notifyOn; lsSet(NOTIFY_KEY,notifyOn); notifyLast=''; syncNotify(true); renderNotifyCard(); toast(notifyOn?'돌봄 알림을 켰어요':'돌봄 알림을 껐어요'); };
+}
+
+/* ===== 내 데이터: 플레이어 번호 확인·전체 삭제 =====
+   Google Play 데이터 삭제 정책 — 앱 안에서 직접 지울 수 있어야 한다. POST /api/me/delete 후 기기 토큰을 지우고 새로 시작한다.
+   웹 안내 페이지: delete-data.html */
+let delArmT=null;
+function renderDataCard(){
+  const c=$('dataCard'); if(!c) return;
+  const pid=(AUTH&&AUTH.playerId)||'';
+  c.innerHTML=`<b style="font-family:var(--f-display);font-weight:400">내 데이터</b>
+    <div class="note">플레이어 번호: <span class="num" style="user-select:all">${esc(pid.slice(0,8)||'-')}</span><br>문의할 때 이 번호를 알려 주시면 기록을 찾을 수 있어요.</div>
+    <div style="margin-top:8px"><button class="btn-s" id="delBtn">모든 기록 삭제</button></div>`;
+  $('delBtn').onclick=async()=>{
+    const b=$('delBtn');
+    if(!b.classList.contains('arm')){   // 한 번 더 눌러야 삭제
+      b.classList.add('arm'); b.textContent='정말 지울까요? 한 번 더 누르면 삭제'; clearTimeout(delArmT);
+      delArmT=setTimeout(()=>{ b.classList.remove('arm'); b.textContent='모든 기록 삭제'; },4000);
+      toast('상어와 떠난 상어 기록, 랭킹 기록이 모두 지워지고 되돌릴 수 없어요'); return;
+    }
+    clearTimeout(delArmT); b.disabled=true; b.textContent='지우는 중…';
+    try{
+      await api('POST','/api/me/delete',{ confirm:'delete' });
+      notifyOn=false; syncNotify(true);   // 예약된 알림도 지운다
+      lsSet(AUTH_KEY,null); lsSet(ILL_SEEN_KEY,null); lsSet(NOTIFY_KEY,null); lsSet(MIGRATED_KEY,Date.now());
+      toast('모든 기록을 지웠어요'); setTimeout(()=>location.reload(),1200);
+    }catch(e){ toast(e.message); b.disabled=false; b.classList.remove('arm'); b.textContent='모든 기록 삭제'; }
+  };
 }
 
 /* ===== 광고 보상 =====

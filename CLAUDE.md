@@ -73,7 +73,8 @@
 - 병 안내 팝업을 이미 봤는지는 기기에만 기록(`shark-keeper-ill-seen` = 발병 시각).
 - 로컬에서 화면+서버를 함께 시험할 때: `cd server && npx wrangler dev --local --port 8793`을 띄우고, Playwright에서 `API_BASE` 요청을 로컬로 넘겨(route) `http://localhost:<포트>/?source=app`을 연다(서버 CORS가 localhost 허용). 주소 매개변수로 API 주소를 바꾸는 기능은 토큰 유출 위험이 있어 두지 않는다.
 - **돌봄 알림(2026-10-21)**: 서버 푸시가 아니라 앱이 기기에서 예약하는 알림. 화면의 `planNotify()`가 지금 상태를 복사해 48시간을 `tick`으로 미리 정산하고 처음 생기는 때를 찾는다 — id 1 배고픔(배부름 25 미만), 2 똥 3개, 3 병 걸림, 4 병 사망 3시간 전, 5 굶주림 사망 3시간 전(지금 이미 그런 상태는 제외). 1·2는 밤 10시~아침 8시면 아침 8시로 미룸(`quietShift`). `syncNotify()`가 `SharkAds`로 `{type:'notify', items}`를 보낸다(서버 응답마다 1.5초 모아서, 앱을 나갈 때는 즉시, 시작 중엔 보내지 않음). 앱(`flutter_app/lib/notifications.dart`)은 받을 때마다 id 1~20 예약을 통째로 바꾸고 `window.__sharkNotifyState({granted})`로 권한을 알려 준다. 기록 탭 "돌봄 알림" 카드에서 켜고 끔(localStorage `shark-keeper-notify`, 기본 켜짐). 정산 규칙이 바뀌면 알림 시각도 같은 `tick`으로 계산되므로 따로 고칠 것 없음.
-- 개인정보처리방침: `privacy.html`(https://shark-keeper.github.io/privacy.html, 기록 탭 맨 아래 링크). 문의 이메일은 아직 '준비 중' — 정해지면 `#contact`를 채운다.
+- 개인정보처리방침: `privacy.html`(https://shark-keeper.github.io/privacy.html). 운영 오상플레이, 보호책임자 '오상플레이 대표', 문의 `dkwkehd2@gmail.com`(사용자가 2026-10-24 공개 문의처로 지정).
+- **데이터 삭제(2026-10-24, Google Play 데이터 삭제 정책)**: 앱 안 — 기록 탭 "내 데이터" 카드(`renderDataCard`)에 플레이어 번호(앞 8자리)와 [모든 기록 삭제](두 번 눌러 확인) → `POST /api/me/delete {confirm:'delete'}`가 그 플레이어의 `sharks`·`requests`·`players`를 지움 → 기기 토큰·알림 설정 지우고 새로고침(새 게스트). 웹 안내 `delete-data.html`(https://shark-keeper.github.io/delete-data.html — Play 콘솔 '데이터 삭제' URL로 등록): 앱에서 지우는 법, 이메일 요청(플레이어 번호·상어 이름), 지워지는 것/잠시 남는 것(`ssv_log` 7일, Cloudflare 접속 기록, AdMob). 기록 탭 맨 아래에 두 페이지 링크.
 
 ## 다음 단계 후보
 
@@ -109,6 +110,7 @@
 | (SSV 서명 메시지) | 구글은 **퍼센트 인코딩을 푼** 쿼리 문자열(`signature` 앞까지)에 서명한다(Tink `URI.getQuery()`). 보상 항목이 `먹이`처럼 한글이면 인코딩된 원문과 달라 서명 실패(`bad_signature`)가 났었다(2026-10-24 수정) — `admob.js`는 푼 문자열과 원문 둘 다 확인 |
 | `GET /api/admob/ssv-log` | SSV 콜백 최근 10건(시각·결과·요청 앞부분) — AdMob "URL 확인"이 실패할 때 원인 확인용 |
 | `GET /api/rank?type=alive\|all` | 살아 있는 상어 / 플레이어별 역대 최고, 상위 50 + 토큰이 있으면 `me`(내 순위) |
+| `POST /api/me/delete` `{confirm:'delete'}` | 내 데이터 전부 삭제(플레이어·상어·떠난 상어·요청 기록). 되돌릴 수 없음 |
 | `POST /api/import` `{shark, offsetMs}` | 브라우저(localStorage) 상어를 서버로 한 번 옮김. 값은 범위를 잘라서 받음(길이는 나이 대비 최대 성장량까지, 빨리 감기 시간은 되돌림) |
 
 - `shark` 응답 = 저장 상태 전체 + `id`, `stage`, `days`, `growthPerDay`, `cdLeftMs{행동별}`, `foodLeftMs`. 함께 오는 `now`(서버 시각)로 화면 타이머를 맞춘다.
@@ -123,8 +125,8 @@
 - 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
 - **AdMob 계정 연결(2026-10-24)**: 퍼블리셔 `pub-3934873497580609`. 앱 ID(공개값, 앱에 들어감) Android `ca-app-pub-3934873497580609~3337124010`, iOS `ca-app-pub-3934873497580609~3361174748` — `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`)와 이미 생성된 `android/app/src/main/AndroidManifest.xml`·`ios/Runner/Info.plist`에 반영. 저장소 루트 `app-ads.txt`(https://shark-keeper.github.io/app-ads.txt)에 `google.com, pub-3934873497580609, DIRECT, f08c47fec0942fa0` — 스토어 등록 때 개발자 웹사이트를 `https://shark-keeper.github.io`로 해야 AdMob이 찾는다. 안드로이드 minSdk 23 이상.
 - 광고 단위: `flutter_app/lib/config.dart`. 보상형(먹이 보상, 2026-10-24 등록) Android `ca-app-pub-3934873497580609/1177156695`, iOS `ca-app-pub-3934873497580609/1368814106`(`kMyRewardedUnit*`). 배너 광고는 넣지 않기로 함(2026-10-24, 하단 배너를 시험해 본 뒤 제거).
-- `ADS_MODE`는 출시 직전까지 `test` 유지: `ssv`로 바꾸면 디버그 빌드(테스트 광고 단위 → SSV 콜백 없음)에서 보상이 안 들어온다. 첫 릴리스 빌드를 스토어에 올릴 때 `ssv`로 바꾼다. **디버그·프로필 빌드는 항상 구글 테스트 광고 단위**(`kReleaseMode`일 때만 내 광고 단위) — 개발 중 내 광고 노출·클릭은 무효 트래픽으로 계정 정지 위험.
-- **실제 광고로 바꿀 때 체크리스트**: ① ~~AdMob 가입·앱 등록·보상형 광고 단위 생성~~(완료) ② ~~앱 ID·보상형 광고 단위 ID 교체~~(완료) ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력(Android 먹이보상 등록 완료 2026-10-24 — 처음엔 "알 수 없는 오류", 서명 실패도 200으로 답하고 HEAD·POST도 받게 고친 뒤 통과. 한글 보상 항목 서명 문제까지 고친 뒤 `ssv-log`에서 `ok:no_user`(서명 확인 정상) 확인. iOS 광고 단위도 같은 URL 필요) ④ `ADS_MODE`를 `ssv`로 ⑤ ~~`app-ads.txt`~~(완료) ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).
+- **`ADS_MODE`는 `ssv`(2026-10-24 출시 준비로 전환)**: 구글 서버 확인을 거친 광고만 먹이 지급. 대신 디버그 빌드(구글 테스트 광고 단위 → SSV 콜백 없음)에서는 광고를 봐도 먹이가 안 들어온다 — 개발 중 광고 보상을 시험하려면 잠시 `test`로 되돌린다. **디버그·프로필 빌드는 항상 구글 테스트 광고 단위**(`kReleaseMode`일 때만 내 광고 단위) — 개발 중 내 광고 노출·클릭은 무효 트래픽으로 계정 정지 위험.
+- **실제 광고로 바꿀 때 체크리스트**: ① ~~AdMob 가입·앱 등록·보상형 광고 단위 생성~~(완료) ② ~~앱 ID·보상형 광고 단위 ID 교체~~(완료) ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력(Android 먹이보상 등록 완료 2026-10-24 — 처음엔 "알 수 없는 오류", 서명 실패도 200으로 답하고 HEAD·POST도 받게 고친 뒤 통과. 한글 보상 항목 서명 문제까지 고친 뒤 `ssv-log`에서 `ok:no_user`(서명 확인 정상) 확인. iOS 광고 단위도 같은 URL 필요) ④ ~~`ADS_MODE`를 `ssv`로~~(완료) ⑤ ~~`app-ads.txt`~~(완료) ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).
 - **웹 브라우저 플레이는 막는다**(2026-10-19 결정, 광고 수익을 앱으로 모으기 위해): `index.html`의 `IS_APP`(앱 통로 `SharkAds`가 있거나 주소에 `?source=app`)이 아니면 `boot()`가 게임을 시작하지 않고 "앱에서 만나요!" 화면(`#ovWeb`, 스토어 버튼)을 띄운다. 스토어 주소는 `STORE_URLS`(비어 있으면 '준비 중'). 화면 쪽 차단이라 `?source=app`을 직접 붙이면 브라우저에서도 열린다 — 개발·테스트는 이 주소로 한다. 나중에 웹을 다시 열면 H5 Games Ads(신청·승인, 자체 도메인 유리) 검토.
 
 ## 보안 원칙

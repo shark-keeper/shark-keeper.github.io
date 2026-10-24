@@ -62,6 +62,14 @@ export async function verifyAdmobSsv(rawQuery, fetchFn = (u, o) => globalThis.fe
   if (!keys.has(params.key_id)) keys = await loadKeys(fetchFn, now, true);   // 키가 막 교체됐을 수 있다
   const key = keys.get(params.key_id);
   if (!key) return { ok: false, reason: 'unknown_key' };
-  const valid = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sig, new TextEncoder().encode(message));
-  return valid ? { ok: true, params } : { ok: false, reason: 'bad_signature' };
+  // 구글(Tink RewardedAdsVerifier)은 퍼센트 인코딩을 푼 쿼리 문자열(Java URI.getQuery())에 서명한다.
+  // 보상 항목 이름이 '먹이'처럼 한글이면 인코딩된 그대로와 달라지므로, 푼 문자열을 먼저 확인하고 원문도 확인한다.
+  const enc = new TextEncoder();
+  const candidates = [];
+  try { candidates.push(decodeURIComponent(message)); } catch (e) { /* 잘못된 인코딩이면 원문만 */ }
+  if (!candidates.includes(message)) candidates.push(message);
+  for (const m of candidates) {
+    if (await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, sig, enc.encode(m))) return { ok: true, params };
+  }
+  return { ok: false, reason: 'bad_signature' };
 }

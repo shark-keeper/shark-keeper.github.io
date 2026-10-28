@@ -1,6 +1,6 @@
 # 상어집사 — Flutter 앱 (WebView 래퍼)
 
-배포 중인 웹게임 <https://shark-keeper.github.io/> 을 앱 화면에 띄우는 Flutter 프로젝트입니다.
+배포 중인 웹게임 <https://shark-keeper.ohsangplay.com/> 을 앱 화면에 띄우는 Flutter 프로젝트입니다.
 게임 자체는 웹에서 업데이트되므로 **밸런스·디자인 변경은 앱을 다시 내지 않아도 바로 반영**됩니다.
 앱을 다시 빌드해야 하는 경우는 앱 이름·아이콘·스플래시·이 폴더의 코드를 바꿀 때뿐입니다.
 
@@ -32,7 +32,7 @@ flutter test         # 링크 처리 규칙 테스트
 
 | 항목 | 동작 |
 |---|---|
-| 게임 화면 | `https://shark-keeper.github.io/?source=app` 을 WebView로 표시 (세로 고정, 확대 끔) |
+| 게임 화면 | `https://shark-keeper.ohsangplay.com/?source=app` 을 WebView로 표시 (세로 고정, 확대 끔) |
 | 외부 링크 | 게임 주소 밖 링크는 기기 브라우저로 연다 |
 | 뒤로가기 (안드로이드) | 웹 안에서 뒤로 갈 곳이 없으면 앱 종료 |
 | 첫 로딩 | 상어 그림 + 진행 막대 |

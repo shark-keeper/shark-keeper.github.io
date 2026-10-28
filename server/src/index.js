@@ -7,7 +7,8 @@ import { CFG, ACTIONS, newShark, settle, act, adRefill, daysAlive, cdLeft, foodL
 import { ensureSchema } from './schema.js';
 import { verifyAdmobSsv } from './admob.js';
 
-const ALLOWED_ORIGINS = ['https://shark-keeper.github.io'];
+// 첫 번째가 기본 주소. 옛 github.io 주소는 자체 도메인 전환 기간 동안 함께 허용한다(2026-10-28)
+const ALLOWED_ORIGINS = ['https://shark-keeper.ohsangplay.com', 'https://shark-keeper.github.io'];
 const DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;   // 로컬 개발용
 const SAVE_EVERY_MS = 30 * 6e4;      // 조회만 할 때는 30분에 한 번만 DB에 저장 (정산은 결정적이라 다시 계산해도 같다)
 const LAUNCH = Date.UTC(2026, 9, 1); // 가져오기 때 이보다 오래된 출생 시각은 인정하지 않는다

@@ -2,7 +2,8 @@
 
 다마고치형 상어 육성 모바일 웹게임. 엔딩 없이 몸길이(cm)로 경쟁한다.
 
-- 배포 주소: https://shark-keeper.github.io/ (예전 `bukanggochi.github.io`는 더 이상 쓰지 않는다 — 서버 CORS도 새 주소만 허용)
+- 배포 주소: **https://shark-keeper.ohsangplay.com/** (2026-10-28 자체 도메인으로 전환, 도메인 `ohsangplay.com`은 사용자 소유). 옛 기본 주소 `shark-keeper.github.io`는 GitHub가 새 주소로 넘겨준다. 서버 CORS와 앱(`kOldGameHosts`)은 전환 기간 동안 옛 주소도 허용한다. 그보다 예전 `bukanggochi.github.io`는 쓰지 않는다.
+- **자체 도메인 연결 순서(2026-10-28 진행 중)**: ① DNS에 `shark-keeper` CNAME → `shark-keeper.github.io.` ② (권장) GitHub 조직 설정 → Pages → Verified domains에 `ohsangplay.com` 등록(TXT 레코드) ③ 저장소 Settings → Pages → Custom domain에 `shark-keeper.ohsangplay.com` 입력(GitHub가 `CNAME` 파일을 커밋한다) → DNS 확인 통과 후 Enforce HTTPS ④ 새 주소로 앱 빌드. **①이 끝나기 전에 ③을 하면 옛 주소가 연결 안 된 새 주소로 넘어가 설치된 앱이 멈추므로 순서를 지킨다.** 기기 저장소(localStorage)는 주소별이라 전환 전 옛 주소에서 키우던 상어(테스트 기기)는 새 주소에서 보이지 않는다.
 - 저장소: `shark-keeper/shark-keeper.github.io` (GitHub Pages, `main` 브랜치 루트)
 - 게임 이름은 **상어집사**(2026-10-20 '부캉이 키우기'에서 변경, 상표 검토 전). 화면 제목은 `DEFAULTS.brandName`. 저장소 키(`bukangi-proto-v2` 등)·앱 ID는 기존 저장 데이터·출시 호환을 위해 그대로 둔다.
 
@@ -29,7 +30,7 @@
 - 밸런스 값은 **서버(`server/src/game.js`의 `CFG`) 한 곳에만** 있다. 화면(`index.html`)은 시작할 때 `GET /api/config`로 받아 `CFG`에 넣고(4초 제한), 받은 값을 localStorage `shark-keeper-cfg`에 보관해 서버에 닿지 않으면 그 값으로 실행한다. 보관값도 없으면 "바다에 연결하지 못했어요" 안내(`#ovCfg`, 다시 시도). `index.html`의 `DEFAULTS`에는 화면 전용 값(`brandName`)만, `API_BASE`는 서버 주소. 관리자 탭은 제거했고 브라우저의 옛 설정(`S.cfg`)은 무시하고 지운다.
 - UI 문구는 한국어. 모바일 세로 화면 우선, 밝은 바다 블루 톤.
 - 커밋 작성자는 `Claude <noreply@anthropic.com>`.
-- push 후 https://shark-keeper.github.io/?source=app 을 열어 반영됐는지 확인한다(주소에 `?source=app`이 없으면 웹 차단 화면이 나온다).
+- push 후 https://shark-keeper.ohsangplay.com/?source=app 을 열어 반영됐는지 확인한다(주소에 `?source=app`이 없으면 웹 차단 화면이 나온다).
 
 ## 현재 게임 규칙 (`server/src/game.js`의 `CFG`)
 
@@ -73,8 +74,8 @@
 - 병 안내 팝업을 이미 봤는지는 기기에만 기록(`shark-keeper-ill-seen` = 발병 시각).
 - 로컬에서 화면+서버를 함께 시험할 때: `cd server && npx wrangler dev --local --port 8793`을 띄우고, Playwright에서 `API_BASE` 요청을 로컬로 넘겨(route) `http://localhost:<포트>/?source=app`을 연다(서버 CORS가 localhost 허용). 주소 매개변수로 API 주소를 바꾸는 기능은 토큰 유출 위험이 있어 두지 않는다.
 - **돌봄 알림(2026-10-21)**: 서버 푸시가 아니라 앱이 기기에서 예약하는 알림. 화면의 `planNotify()`가 지금 상태를 복사해 48시간을 `tick`으로 미리 정산하고 처음 생기는 때를 찾는다 — id 1 배고픔(배부름 25 미만), 2 똥 3개, 3 병 걸림, 4 병 사망 3시간 전, 5 굶주림 사망 3시간 전(지금 이미 그런 상태는 제외). 1·2는 밤 10시~아침 8시면 아침 8시로 미룸(`quietShift`). `syncNotify()`가 `SharkAds`로 `{type:'notify', items}`를 보낸다(서버 응답마다 1.5초 모아서, 앱을 나갈 때는 즉시, 시작 중엔 보내지 않음). 앱(`flutter_app/lib/notifications.dart`)은 받을 때마다 id 1~20 예약을 통째로 바꾸고 `window.__sharkNotifyState({granted})`로 권한을 알려 준다. 기록 탭 "돌봄 알림" 카드에서 켜고 끔(localStorage `shark-keeper-notify`, 기본 켜짐). 정산 규칙이 바뀌면 알림 시각도 같은 `tick`으로 계산되므로 따로 고칠 것 없음.
-- 개인정보처리방침: `privacy.html`(https://shark-keeper.github.io/privacy.html). 운영 오상플레이, 보호책임자 '오상플레이 대표', 문의 `dkwkehd2@gmail.com`(사용자가 2026-10-24 공개 문의처로 지정).
-- **데이터 삭제(2026-10-24, Google Play 데이터 삭제 정책)**: 앱 안 — 기록 탭 "내 데이터" 카드(`renderDataCard`)에 플레이어 번호(앞 8자리)와 [모든 기록 삭제](두 번 눌러 확인) → `POST /api/me/delete {confirm:'delete'}`가 그 플레이어의 `sharks`·`requests`·`players`를 지움 → 기기 토큰·알림 설정 지우고 새로고침(새 게스트). 웹 안내 `delete-data.html`(https://shark-keeper.github.io/delete-data.html — Play 콘솔 '데이터 삭제' URL로 등록): 앱에서 지우는 법, 이메일 요청(플레이어 번호·상어 이름), 지워지는 것/잠시 남는 것(`ssv_log` 7일, Cloudflare 접속 기록, AdMob). 기록 탭 맨 아래에 두 페이지 링크.
+- 개인정보처리방침: `privacy.html`(https://shark-keeper.ohsangplay.com/privacy.html). 운영 오상플레이, 보호책임자 '오상플레이 대표', 문의 `dkwkehd2@gmail.com`(사용자가 2026-10-24 공개 문의처로 지정).
+- **데이터 삭제(2026-10-24, Google Play 데이터 삭제 정책)**: 앱 안 — 기록 탭 "내 데이터" 카드(`renderDataCard`)에 플레이어 번호(앞 8자리)와 [모든 기록 삭제](두 번 눌러 확인) → `POST /api/me/delete {confirm:'delete'}`가 그 플레이어의 `sharks`·`requests`·`players`를 지움 → 기기 토큰·알림 설정 지우고 새로고침(새 게스트). 웹 안내 `delete-data.html`(https://shark-keeper.ohsangplay.com/delete-data.html — Play 콘솔 '데이터 삭제' URL로 등록): 앱에서 지우는 법, 이메일 요청(플레이어 번호·상어 이름), 지워지는 것/잠시 남는 것(`ssv_log` 7일, Cloudflare 접속 기록, AdMob). 기록 탭 맨 아래에 두 페이지 링크.
 
 ## 다음 단계 후보
 
@@ -123,7 +124,7 @@
 - 흐름: 화면 [광고 보기] → 앱 안이면 `SharkAds.postMessage({type:'rewarded', reqId, userId})` → Flutter `lib/ads.dart`(`AdsService`)가 보상형 광고 재생(동의 UMP → SDK 초기화 → 광고 1개 미리 로드) → `window.__sharkAdResult({status: earned|dismissed|failed|busy, message, reqId})`. 웹 브라우저(앱 아님)는 3초 목업.
 - 지급은 서버가 한다(`grantAdReward(reqId)`): `ADS_MODE`(`/api/config`의 `adsMode`)가 `test`면 `POST /api/shark/ad`, `ssv`면 `/api/me`를 1.5초 간격으로 최대 8번 다시 읽어 `player.ads.last`가 바뀌었는지 확인. 광고 요청에 `userId`=플레이어 ID(`AUTH.playerId`)를 넣는다(SSV가 이 값으로 지급).
 - 서버 `ADS_MODE`(`server/wrangler.jsonc`의 `vars`): `test`(기본, 앱 보고 인정 — **구글 테스트 광고 단위는 SSV 콜백을 보내지 않음**) / `ssv`(AdMob 서버 검증으로만 지급).
-- **AdMob 계정 연결(2026-10-24)**: 퍼블리셔 `pub-3934873497580609`. 앱 ID(공개값, 앱에 들어감) Android `ca-app-pub-3934873497580609~3337124010`, iOS `ca-app-pub-3934873497580609~3361174748` — `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`)와 이미 생성된 `android/app/src/main/AndroidManifest.xml`·`ios/Runner/Info.plist`에 반영. 저장소 루트 `app-ads.txt`(https://shark-keeper.github.io/app-ads.txt)에 `google.com, pub-3934873497580609, DIRECT, f08c47fec0942fa0` — 스토어 등록 때 개발자 웹사이트를 `https://shark-keeper.github.io`로 해야 AdMob이 찾는다. 안드로이드 minSdk 23 이상.
+- **AdMob 계정 연결(2026-10-24)**: 퍼블리셔 `pub-3934873497580609`. 앱 ID(공개값, 앱에 들어감) Android `ca-app-pub-3934873497580609~3337124010`, iOS `ca-app-pub-3934873497580609~3361174748` — `flutter_app/tool/setup.dart`(`kAdmobAppIdAndroid`/`kAdmobAppIdIos`)와 이미 생성된 `android/app/src/main/AndroidManifest.xml`·`ios/Runner/Info.plist`에 반영. 저장소 루트 `app-ads.txt`(https://shark-keeper.ohsangplay.com/app-ads.txt)에 `google.com, pub-3934873497580609, DIRECT, f08c47fec0942fa0` — 스토어 등록 때 개발자 웹사이트를 `https://shark-keeper.ohsangplay.com`으로 해야 AdMob이 찾는다(자체 도메인 전환 전에는 github.io 주소였음 — Play 등록값도 바꾼다). 안드로이드 minSdk 23 이상.
 - 광고 단위: `flutter_app/lib/config.dart`. 보상형(먹이 보상, 2026-10-24 등록) Android `ca-app-pub-3934873497580609/1177156695`, iOS `ca-app-pub-3934873497580609/1368814106`(`kMyRewardedUnit*`). 배너 광고는 넣지 않기로 함(2026-10-24, 하단 배너를 시험해 본 뒤 제거).
 - **`ADS_MODE`는 `ssv`(2026-10-24 출시 준비로 전환)**: 구글 서버 확인을 거친 광고만 먹이 지급. 대신 디버그 빌드(구글 테스트 광고 단위 → SSV 콜백 없음)에서는 광고를 봐도 먹이가 안 들어온다 — 개발 중 광고 보상을 시험하려면 잠시 `test`로 되돌린다. **디버그·프로필 빌드는 항상 구글 테스트 광고 단위**(`kReleaseMode`일 때만 내 광고 단위) — 개발 중 내 광고 노출·클릭은 무효 트래픽으로 계정 정지 위험.
 - **실제 광고로 바꿀 때 체크리스트**: ① ~~AdMob 가입·앱 등록·보상형 광고 단위 생성~~(완료) ② ~~앱 ID·보상형 광고 단위 ID 교체~~(완료) ③ AdMob 광고 단위의 서버 측 검증 URL에 `https://shark-keeper-api.shark-keeper.workers.dev/api/admob/ssv` 입력(Android 먹이보상 등록 완료 2026-10-24 — 처음엔 "알 수 없는 오류", 서명 실패도 200으로 답하고 HEAD·POST도 받게 고친 뒤 통과. 한글 보상 항목 서명 문제까지 고친 뒤 `ssv-log`에서 `ok:no_user`(서명 확인 정상) 확인. iOS 광고 단위도 같은 URL 필요) ④ ~~`ADS_MODE`를 `ssv`로~~(완료) ⑤ ~~`app-ads.txt`~~(완료) ⑥ 스토어 출시 후 AdMob에서 스토어 연결 → 앱 심사(2~3일).

@@ -80,7 +80,7 @@ jobs:
           "$@" 2>&1 | tee "$log"
           code=${PIPESTATUS[0]}
           if [ "$code" != 0 ]; then
-            msg=$(tail -n 80 "$log" | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            msg=$( { echo "[error 줄]"; grep -E "error:|Error:|FAILED" "$log" | tail -n 30; echo "[마지막 50줄]"; tail -n 50 "$log"; } | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
             echo "::error title=${title} 실패 (종료 코드 ${code})::${msg}"
           fi
           exit "$code"
@@ -93,11 +93,25 @@ jobs:
           "$RUN" "flutter pub get" flutter pub get
           "$RUN" "flutter test" flutter test
 
-      - name: Flutter 빌드 (서명 없이)
+      - name: Flutter 빌드 설정 만들기
         run: |
           flutter --version
           xcodebuild -version
-          "$RUN" "Flutter 빌드" flutter build ios --release --no-codesign --build-number="$BUILD_NUMBER"
+          # 빌드는 하지 않고 Generated.xcconfig·플러그인 Swift 패키지만 만든다(빌드는 아래 xcodebuild archive가 한다)
+          "$RUN" "Flutter 빌드 설정" flutter build ios --config-only --release --no-codesign --build-number="$BUILD_NUMBER"
+
+      - name: 플러그인 Swift 패키지 최소 iOS 버전 맞추기
+        run: |
+          # Flutter가 만든 FlutterGeneratedPluginSwiftPackage가 iOS 13.0으로 잡혀
+          # webview_flutter_wkwebview(15.0 이상 필요)와 충돌한다 → 앱 배포 대상(15.0)에 맞춘다
+          pkg=ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
+          if [ -f "$pkg" ]; then
+            sed -E -i '' 's/\.iOS\("1[0-4](\.[0-9]+)*"\)/.iOS("15.0")/; s/\.iOS\(\.v1[0-4]\)/.iOS(.v15)/' "$pkg"
+            echo "----- $pkg -----"; cat "$pkg"
+            echo "::notice title=플러그인 패키지 플랫폼::$(grep -A3 'platforms' "$pkg" | tr '\n' ' ')"
+          else
+            echo "::warning::$pkg 이 없습니다(CocoaPods 방식일 수 있음)"
+          fi
 
       - name: 아카이브 (서명 없이)
         run: |

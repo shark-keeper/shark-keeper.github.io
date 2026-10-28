@@ -93,6 +93,20 @@ jobs:
           "$RUN" "flutter pub get" flutter pub get
           "$RUN" "flutter test" flutter test
 
+      - name: 플러그인 Swift 패키지 최소 iOS를 15.0으로
+        run: |
+          # google_mobile_ads 8.x의 Package.swift가 iOS 13.0으로 선언돼 있는데 안에서 webview_flutter_wkwebview(15.0 이상)를 써서
+          # 아카이브가 실패한다. 앱 배포 대상이 15.0이므로 쓰는 플러그인들의 최소 iOS 선언을 15.0으로 올려도 동작은 같다.
+          cache="${PUB_CACHE:-$HOME/.pub-cache}"
+          found=0
+          while IFS= read -r f; do
+            if grep -Eq '\.iOS\("1[0-4](\.[0-9]+)*"\)|\.iOS\(\.v1[0-4]\)' "$f"; then
+              sed -E -i '' 's/\.iOS\("1[0-4](\.[0-9]+)*"\)/.iOS("15.0")/g; s/\.iOS\(\.v1[0-4]\)/.iOS(.v15)/g' "$f"
+              echo "올림: $f"; found=$((found+1))
+            fi
+          done < <(find "$cache/hosted" -path '*/ios/*/Package.swift' -o -path '*/darwin/*/Package.swift' 2>/dev/null)
+          echo "::notice title=플러그인 최소 iOS 조정::${found}개 Package.swift를 15.0으로 올림"
+
       - name: Flutter 빌드 설정 만들기
         run: |
           flutter --version

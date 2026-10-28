@@ -69,26 +69,46 @@ jobs:
           echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
           echo "빌드 번호: $BUILD_NUMBER"
 
+      - name: 로그 도우미 준비
+        run: |
+          cat > "$RUNNER_TEMP/run_logged.sh" <<'SH'
+          #!/bin/bash
+          # 사용: run_logged.sh <제목> <명령...> — 출력은 그대로 보여 주고, 실패하면 마지막 80줄을 오류 주석으로 남긴다
+          title="$1"; shift
+          log="$RUNNER_TEMP/last.log"
+          set -o pipefail
+          "$@" 2>&1 | tee "$log"
+          code=${PIPESTATUS[0]}
+          if [ "$code" != 0 ]; then
+            msg=$(tail -n 80 "$log" | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=${title} 실패 (종료 코드 ${code})::${msg}"
+          fi
+          exit "$code"
+          SH
+          chmod +x "$RUNNER_TEMP/run_logged.sh"
+          echo "RUN=$RUNNER_TEMP/run_logged.sh" >> "$GITHUB_ENV"
+
       - name: 패키지 받기와 테스트
         run: |
-          flutter pub get
-          flutter test
+          "$RUN" "flutter pub get" flutter pub get
+          "$RUN" "flutter test" flutter test
 
       - name: Flutter 빌드 (서명 없이)
-        run: flutter build ios --release --no-codesign --build-number="$BUILD_NUMBER"
+        run: |
+          flutter --version
+          xcodebuild -version
+          "$RUN" "Flutter 빌드" flutter build ios --release --no-codesign --build-number="$BUILD_NUMBER"
 
       - name: 아카이브 (서명 없이)
         run: |
-          set -o pipefail
-          xcodebuild archive \
+          "$RUN" "아카이브" xcodebuild archive \
             -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -n 80
+            CODE_SIGNING_ALLOWED=NO
 
       - name: 클라우드 서명 후 App Store Connect에 업로드
         run: |
-          set -o pipefail
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -103,14 +123,14 @@ jobs:
           </dict>
           </plist>
           EOF
-          xcodebuild -exportArchive \
+          "$RUN" "서명·업로드" xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tail -n 80
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
           echo "### 업로드 완료 — 빌드 번호 $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "App Store Connect 처리(5~30분)가 끝나면 TestFlight와 버전 화면의 '빌드'에 나타납니다." >> "$GITHUB_STEP_SUMMARY"
 

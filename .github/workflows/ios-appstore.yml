@@ -5,7 +5,9 @@
 #   APP_STORE_CONNECT_ISSUER_ID  발급자(Issuer) ID (UUID)
 #   APP_STORE_CONNECT_KEY_P8     내려받은 AuthKey_XXXX.p8 파일 내용 전체(-----BEGIN PRIVATE KEY----- 줄 포함)
 #   APPLE_TEAM_ID                Apple 개발자 팀 ID (10자리)
-# 인증서·프로비저닝 프로필은 Xcode 클라우드 서명이 API 키로 알아서 만든다(키 권한: 관리자/Admin).
+# 인증서·프로비저닝 프로필은 Xcode가 API 키로 알아서 만든다(키 권한: 관리자/Admin).
+# 아카이브는 개발 인증서로 서명해야 한다 — 서명 없이(CODE_SIGNING_ALLOWED=NO) 아카이브하면 내보낼 때
+# GoogleMobileAds·UserMessagingPlatform 프레임워크가 다시 서명되지 않아 업로드가 'Invalid Signature'로 거절된다(2026-10-28).
 name: iOS 빌드 → App Store Connect
 
 on:
@@ -195,14 +197,18 @@ jobs:
             echo "::warning::$pkg 이 없습니다(CocoaPods 방식일 수 있음)"
           fi
 
-      - name: 아카이브 (서명 없이)
+      - name: 아카이브 (개발 서명)
         if: ${{ !inputs.check_only }}
         run: |
           "$RUN" "아카이브" xcodebuild archive \
             -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
 
       - name: 클라우드 서명 후 App Store Connect에 업로드
         if: ${{ !inputs.check_only }}

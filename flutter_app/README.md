@@ -84,3 +84,36 @@ flutter test         # 링크 처리 규칙 테스트
 | 게임 주소·브랜드명·색 | `lib/config.dart` |
 | 홈 화면 표시 이름 | `tool/setup.dart`의 `kDisplayName` 수정 후 다시 실행 |
 | 아이콘·스플래시 | `assets/icon/*.png` 교체 후 `dart run flutter_launcher_icons`, `dart run flutter_native_splash:create` |
+
+## 릴리스 빌드 (스토어 제출)
+
+### Android — 업로드 키
+
+Play Console에 올리는 AAB는 내 업로드 키로 서명해야 합니다. 처음 한 번 키를 만듭니다(Android Studio의 JDK에 들어 있는 `keytool`).
+
+```bash
+keytool -genkey -v -keystore C:/keys/sharkkeeper-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+`flutter_app/android/key.properties`를 만듭니다(**저장소에 올리지 않음** — `.gitignore`에 있음).
+
+```properties
+storePassword=키 저장소 비밀번호
+keyPassword=키 비밀번호
+keyAlias=upload
+storeFile=C:/keys/sharkkeeper-upload.jks
+```
+
+```bash
+flutter build appbundle   # build/app/outputs/bundle/release/app-release.aab
+```
+
+`.jks` 파일과 비밀번호는 저장소 밖(비밀번호 관리자, 개인 클라우드 등)에 꼭 백업하세요. Play 앱 서명을 쓰면 업로드 키를 잃어버려도 Play Console에서 재설정할 수 있지만 며칠 걸립니다.
+
+### iOS
+
+iPhone 전용, 세로 고정입니다. Mac에서 Xcode로 `ios/Runner.xcworkspace`를 열어 Signing & Capabilities → Automatically manage signing → Team을 고른 뒤:
+
+```bash
+flutter build ipa         # build/ios/ipa/*.ipa → Transporter 또는 Xcode Organizer로 업로드
+```

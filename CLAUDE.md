@@ -3,7 +3,7 @@
 다마고치형 상어 육성 모바일 웹게임. 엔딩 없이 몸길이(cm)로 경쟁한다.
 
 - 배포 주소: **https://shark-keeper.ohsangplay.com/** (2026-10-28 자체 도메인으로 전환, 도메인 `ohsangplay.com`은 사용자 소유). 옛 기본 주소 `shark-keeper.github.io`는 GitHub가 새 주소로 넘겨준다. 서버 CORS와 앱(`kOldGameHosts`)은 전환 기간 동안 옛 주소도 허용한다. 그보다 예전 `bukanggochi.github.io`는 쓰지 않는다.
-- **자체 도메인 연결 순서(2026-10-28 진행 중)**: ① DNS에 `shark-keeper` CNAME → `shark-keeper.github.io.` ② (권장) GitHub 조직 설정 → Pages → Verified domains에 `ohsangplay.com` 등록(TXT 레코드) ③ 저장소 Settings → Pages → Custom domain에 `shark-keeper.ohsangplay.com` 입력(GitHub가 `CNAME` 파일을 커밋한다) → DNS 확인 통과 후 Enforce HTTPS ④ 새 주소로 앱 빌드. **①이 끝나기 전에 ③을 하면 옛 주소가 연결 안 된 새 주소로 넘어가 설치된 앱이 멈추므로 순서를 지킨다.** 기기 저장소(localStorage)는 주소별이라 전환 전 옛 주소에서 키우던 상어(테스트 기기)는 새 주소에서 보이지 않는다.
+- **자체 도메인 연결(2026-10-28 완료 — DNS·Pages Custom domain·HTTPS 적용, 새 주소에서 게임·`app-ads.txt`·서버 CORS 정상, 옛 주소는 새 주소로 넘어감 확인)**. 순서 기록: ① DNS에 `shark-keeper` CNAME → `shark-keeper.github.io.` ② (권장) GitHub 조직 설정 → Pages → Verified domains에 `ohsangplay.com` 등록(TXT 레코드) ③ 저장소 Settings → Pages → Custom domain에 `shark-keeper.ohsangplay.com` 입력(GitHub가 `CNAME` 파일을 커밋한다) → DNS 확인 통과 후 Enforce HTTPS ④ 새 주소로 앱 빌드. **①이 끝나기 전에 ③을 하면 옛 주소가 연결 안 된 새 주소로 넘어가 설치된 앱이 멈추므로 순서를 지킨다.** 기기 저장소(localStorage)는 주소별이라 전환 전 옛 주소에서 키우던 상어(테스트 기기)는 새 주소에서 보이지 않는다.
 - 저장소: `shark-keeper/shark-keeper.github.io` (GitHub Pages, `main` 브랜치 루트)
 - 게임 이름은 **상어집사**(2026-10-20 '부캉이 키우기'에서 변경, 상표 검토 전). 화면 제목은 `DEFAULTS.brandName`. 저장소 키(`bukangi-proto-v2` 등)·앱 ID는 기존 저장 데이터·출시 호환을 위해 그대로 둔다.
 

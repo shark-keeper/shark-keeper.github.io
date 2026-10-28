@@ -1,0 +1,119 @@
+# iOS 앱을 빌드해 App Store Connect(TestFlight)에 올린다.
+# 실행: GitHub 저장소 → Actions → "iOS 빌드 → App Store Connect" → Run workflow (수동 실행만)
+# 필요한 Secrets(저장소 Settings → Secrets and variables → Actions):
+#   APP_STORE_CONNECT_KEY_ID     App Store Connect API 키 ID (예: 2X9R4HXF34)
+#   APP_STORE_CONNECT_ISSUER_ID  발급자(Issuer) ID (UUID)
+#   APP_STORE_CONNECT_KEY_P8     내려받은 AuthKey_XXXX.p8 파일 내용 전체(-----BEGIN PRIVATE KEY----- 줄 포함)
+#   APPLE_TEAM_ID                Apple 개발자 팀 ID (10자리)
+# 인증서·프로비저닝 프로필은 Xcode 클라우드 서명이 API 키로 알아서 만든다(키 권한: 관리자/Admin).
+name: iOS 빌드 → App Store Connect
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: '빌드 번호 (비우면 실행 번호를 쓴다. 이전에 올린 빌드보다 커야 한다)'
+        required: false
+        default: ''
+
+concurrency:
+  group: ios-appstore
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: flutter_app
+    env:
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'   # 사용자 PC에서 첫 빌드를 확인한 버전
+          channel: stable
+          cache: true
+
+      - name: 비밀값 확인과 API 키 파일 준비
+        env:
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+        run: |
+          missing=0
+          for v in ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID ASC_KEY_P8; do
+            if [ -z "${!v}" ]; then echo "::error::GitHub Secrets 값이 비어 있습니다: $v"; missing=1; fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          key="$RUNNER_TEMP/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          # .p8 내용을 그대로 붙여 넣었으면 그대로, base64로 넣었으면 풀어서 쓴다
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY_P8" > "$key"
+          else
+            printf '%s' "$ASC_KEY_P8" | base64 --decode > "$key"
+          fi
+          chmod 600 "$key"
+          echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
+          echo "빌드 번호: $BUILD_NUMBER"
+
+      - name: 패키지 받기와 테스트
+        run: |
+          flutter pub get
+          flutter test
+
+      - name: Flutter 빌드 (서명 없이)
+        run: flutter build ios --release --no-codesign --build-number="$BUILD_NUMBER"
+
+      - name: 아카이브 (서명 없이)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -n 80
+
+      - name: 클라우드 서명 후 App Store Connect에 업로드
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tail -n 80
+          echo "### 업로드 완료 — 빌드 번호 $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          echo "App Store Connect 처리(5~30분)가 끝나면 TestFlight와 버전 화면의 '빌드'에 나타납니다." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: API 키 파일 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private_keys"

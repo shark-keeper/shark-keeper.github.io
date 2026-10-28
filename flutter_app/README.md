@@ -110,10 +110,21 @@ flutter build appbundle   # build/app/outputs/bundle/release/app-release.aab
 
 `.jks` 파일과 비밀번호는 저장소 밖(비밀번호 관리자, 개인 클라우드 등)에 꼭 백업하세요. Play 앱 서명을 쓰면 업로드 키를 잃어버려도 Play Console에서 재설정할 수 있지만 며칠 걸립니다.
 
-### iOS
+### iOS — GitHub Actions로 빌드·업로드
 
-iPhone 전용, 세로 고정입니다. Mac에서 Xcode로 `ios/Runner.xcworkspace`를 열어 Signing & Capabilities → Automatically manage signing → Team을 고른 뒤:
+Mac 없이 GitHub의 Mac 빌드 서버에서 빌드하고 App Store Connect(TestFlight)에 바로 올립니다. 워크플로: `.github/workflows/ios-appstore.yml`
 
-```bash
-flutter build ipa         # build/ios/ipa/*.ipa → Transporter 또는 Xcode Organizer로 업로드
-```
+1. **App Store Connect API 키 만들기** — App Store Connect → 사용자 및 액세스 → 통합 → App Store Connect API → 팀 키 → (+) 생성. 이름 `github-actions`, 액세스 **관리자(Admin)**. `.p8` 파일은 **한 번만** 내려받을 수 있으니 안전한 곳에 보관합니다. 같은 화면에 키 ID와 발급자(Issuer) ID가 있습니다.
+2. **팀 ID 확인** — developer.apple.com → Account → 멤버십 세부 사항의 Team ID(10자리).
+3. **GitHub Secrets 등록** — 저장소 Settings → Secrets and variables → Actions → New repository secret
+
+   | 이름 | 값 |
+   |---|---|
+   | `APP_STORE_CONNECT_KEY_ID` | 키 ID |
+   | `APP_STORE_CONNECT_ISSUER_ID` | 발급자 ID |
+   | `APP_STORE_CONNECT_KEY_P8` | `.p8` 파일을 메모장으로 열어 `-----BEGIN PRIVATE KEY-----`부터 `-----END PRIVATE KEY-----`까지 전체 |
+   | `APPLE_TEAM_ID` | 팀 ID |
+
+4. **실행** — 저장소 Actions → "iOS 빌드 → App Store Connect" → Run workflow. 빌드 번호를 비우면 실행 번호를 씁니다(이전에 올린 빌드보다 커야 함). 20~30분 뒤 업로드되고, App Store Connect 처리가 끝나면 TestFlight와 버전 화면의 '빌드'에 나타납니다.
+
+앱 버전(1.0.0)은 `pubspec.yaml`의 `version`을 따릅니다. iPhone 전용, 세로 고정입니다.

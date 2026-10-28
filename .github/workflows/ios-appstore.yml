@@ -15,6 +15,11 @@ on:
         description: '빌드 번호 (비우면 실행 번호를 쓴다. 이전에 올린 빌드보다 커야 한다)'
         required: false
         default: ''
+      check_only:
+        description: 'API 키 확인만 하고 빌드하지 않기'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ios-appstore
@@ -52,24 +57,83 @@ jobs:
         env:
           ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
         run: |
-          missing=0
-          for v in ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID ASC_KEY_P8; do
-            if [ -z "${!v}" ]; then echo "::error::GitHub Secrets 값이 비어 있습니다: $v"; missing=1; fi
-          done
-          [ "$missing" = 0 ] || exit 1
+          pip3 install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || pip3 install --quiet pyjwt cryptography
           mkdir -p "$RUNNER_TEMP/private_keys"
-          key="$RUNNER_TEMP/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          # .p8 내용을 그대로 붙여 넣었으면 그대로, base64로 넣었으면 풀어서 쓴다
-          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
-            printf '%s\n' "$ASC_KEY_P8" > "$key"
-          else
-            printf '%s' "$ASC_KEY_P8" | base64 --decode > "$key"
-          fi
-          chmod 600 "$key"
-          echo "ASC_KEY_PATH=$key" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import base64, json, os, re, sys, time, urllib.request, urllib.error
+          import jwt
+          from cryptography.hazmat.primitives.serialization import load_pem_private_key
+          from cryptography.hazmat.primitives.asymmetric import ec
+
+          def err(title, msg):
+              print(f"::error title={title}::{msg}"); sys.exit(1)
+
+          kid = os.environ.get("ASC_KEY_ID", "").strip()
+          iss = os.environ.get("ASC_ISSUER_ID", "").strip()
+          team = os.environ.get("APPLE_TEAM_ID", "").strip()
+          raw = os.environ.get("ASC_KEY_P8", "")
+          empty = [n for n, v in [("APP_STORE_CONNECT_KEY_ID", kid), ("APP_STORE_CONNECT_ISSUER_ID", iss), ("APPLE_TEAM_ID", team), ("APP_STORE_CONNECT_KEY_P8", raw.strip())] if not v]
+          if empty: err("Secrets 비어 있음", ", ".join(empty))
+
+          # 형식 확인 (값은 출력하지 않는다)
+          uuid = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+          if uuid.match(kid) and re.match(r"^[A-Z0-9]{10}$", iss):
+              err("키 ID와 발급자 ID가 바뀜", "APP_STORE_CONNECT_KEY_ID에 UUID(발급자 ID)가, APP_STORE_CONNECT_ISSUER_ID에 10자리 키 ID가 들어 있습니다. 두 값을 서로 바꿔 넣어 주세요.")
+          if not re.match(r"^[A-Z0-9]{10}$", kid):
+              err("키 ID 형식", f"APP_STORE_CONNECT_KEY_ID는 영문 대문자·숫자 10자리여야 합니다(지금 {len(kid)}자). 앞뒤 공백이나 'AuthKey_' 접두어가 붙었는지 확인하세요.")
+          if not uuid.match(iss):
+              err("발급자 ID 형식", f"APP_STORE_CONNECT_ISSUER_ID는 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx 형식이어야 합니다(지금 {len(iss)}자). 팀 키 화면 위쪽의 '발급자 ID'를 넣어 주세요. 개인 키(Individual Key)에는 발급자 ID가 없으니 팀 키로 다시 만들어야 합니다.")
+          if not re.match(r"^[A-Z0-9]{10}$", team):
+              err("팀 ID 형식", f"APPLE_TEAM_ID는 영문 대문자·숫자 10자리여야 합니다(지금 {len(team)}자).")
+
+          # .p8: 줄바꿈이 깨져 붙여 넣어져도 다시 맞춘다
+          txt = raw.replace("\r", "")
+          if "BEGIN PRIVATE KEY" not in txt:
+              try: txt = base64.b64decode(re.sub(r"\s", "", txt)).decode()
+              except Exception: err(".p8 형식", "-----BEGIN PRIVATE KEY----- 줄이 없고 base64로도 풀리지 않습니다. .p8 파일 내용 전체를 넣어 주세요.")
+          m = re.search(r"-----BEGIN PRIVATE KEY-----(.*?)-----END PRIVATE KEY-----", txt, re.S)
+          if not m: err(".p8 형식", "-----END PRIVATE KEY----- 줄까지 모두 복사했는지 확인하세요.")
+          body = re.sub(r"\s", "", m.group(1))
+          pem = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(body[i:i+64] for i in range(0, len(body), 64)) + "\n-----END PRIVATE KEY-----\n"
+          try:
+              key = load_pem_private_key(pem.encode(), None)
+          except Exception as e:
+              err(".p8 읽기 실패", f"키를 읽지 못했습니다({type(e).__name__}). 파일 내용이 잘렸거나 다른 파일일 수 있습니다.")
+          if not isinstance(key, ec.EllipticCurvePrivateKey):
+              err(".p8 종류", "App Store Connect API 키(EC P-256)가 아닙니다.")
+          path = os.path.join(os.environ["RUNNER_TEMP"], "private_keys", f"AuthKey_{kid}.p8")
+          with open(path, "w") as f: f.write(pem)
+          os.chmod(path, 0o600)
+          with open(os.environ["GITHUB_ENV"], "a") as f: f.write(f"ASC_KEY_PATH={path}\n")
+
+          # 실제 로그인 시험: App Store Connect API로 이 앱 조회
+          now = int(time.time())
+          token = jwt.encode({"iss": iss, "iat": now, "exp": now + 600, "aud": "appstoreconnect-v1"}, pem, algorithm="ES256", headers={"kid": kid, "typ": "JWT"})
+          url = "https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=com.ohsang.play.sharkkeeper&fields%5Bapps%5D=bundleId,name"
+          req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  data = json.load(r)
+          except urllib.error.HTTPError as e:
+              detail = ""
+              try: detail = "; ".join(x.get("detail", "") for x in json.load(e).get("errors", []))
+              except Exception: pass
+              if e.code == 401:
+                  err("API 키 인증 실패 (401)", "Apple이 키를 거부했습니다. ① 키 ID·발급자 ID가 이 .p8과 같은 키의 것인지 ② 키가 '팀 키'인지(개인 키 아님) ③ 키가 폐기되지 않았는지 확인하세요. " + detail)
+              if e.code == 403:
+                  err("API 키 권한 부족 (403)", "키는 맞지만 권한이 부족합니다. 팀 키 액세스를 '관리자(Admin)'로 다시 만드세요. " + detail)
+              err(f"API 호출 실패 ({e.code})", detail or str(e))
+          except urllib.error.URLError as e:
+              err("Apple 서버 연결 실패", str(e.reason))
+          apps = data.get("data", [])
+          if not apps:
+              err("앱 없음", "키 인증은 됐지만 App Store Connect에 번들 ID com.ohsang.play.sharkkeeper 앱이 없습니다. 이 키의 팀에서 앱을 먼저 만들었는지 확인하세요.")
+          print(f"::notice title=API 키 확인 완료::인증 성공, 앱 '{apps[0]['attributes'].get('name')}' 확인")
+          PY
           echo "빌드 번호: $BUILD_NUMBER"
 
       - name: 로그 도우미 준비
+        if: ${{ !inputs.check_only }}
         run: |
           cat > "$RUNNER_TEMP/run_logged.sh" <<'SH'
           #!/bin/bash
@@ -89,11 +153,13 @@ jobs:
           echo "RUN=$RUNNER_TEMP/run_logged.sh" >> "$GITHUB_ENV"
 
       - name: 패키지 받기와 테스트
+        if: ${{ !inputs.check_only }}
         run: |
           "$RUN" "flutter pub get" flutter pub get
           "$RUN" "flutter test" flutter test
 
       - name: 플러그인 Swift 패키지 최소 iOS를 15.0으로
+        if: ${{ !inputs.check_only }}
         run: |
           # google_mobile_ads 8.x의 Package.swift가 iOS 13.0으로 선언돼 있는데 안에서 webview_flutter_wkwebview(15.0 이상)를 써서
           # 아카이브가 실패한다. 앱 배포 대상이 15.0이므로 쓰는 플러그인들의 최소 iOS 선언을 15.0으로 올려도 동작은 같다.
@@ -108,6 +174,7 @@ jobs:
           echo "::notice title=플러그인 최소 iOS 조정::${found}개 Package.swift를 15.0으로 올림"
 
       - name: Flutter 빌드 설정 만들기
+        if: ${{ !inputs.check_only }}
         run: |
           flutter --version
           xcodebuild -version
@@ -115,6 +182,7 @@ jobs:
           "$RUN" "Flutter 빌드 설정" flutter build ios --config-only --release --no-codesign --build-number="$BUILD_NUMBER"
 
       - name: 플러그인 Swift 패키지 최소 iOS 버전 맞추기
+        if: ${{ !inputs.check_only }}
         run: |
           # Flutter가 만든 FlutterGeneratedPluginSwiftPackage가 iOS 13.0으로 잡혀
           # webview_flutter_wkwebview(15.0 이상 필요)와 충돌한다 → 앱 배포 대상(15.0)에 맞춘다
@@ -128,6 +196,7 @@ jobs:
           fi
 
       - name: 아카이브 (서명 없이)
+        if: ${{ !inputs.check_only }}
         run: |
           "$RUN" "아카이브" xcodebuild archive \
             -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
@@ -136,6 +205,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: 클라우드 서명 후 App Store Connect에 업로드
+        if: ${{ !inputs.check_only }}
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>

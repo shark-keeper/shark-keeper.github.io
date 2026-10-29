@@ -35,7 +35,13 @@ async function networkFirst(req) {
   const cache = await caches.open(CORE);
   try {
     const res = await fetch(req, { cache: 'no-cache' });
-    if (res.ok) cache.put(req.mode === 'navigate' ? './index.html' : req, res.clone());
+    // 게임 화면만 './index.html'로 보관한다(예전엔 모든 페이지 이동을 index.html로 덮어써서
+    // 개인정보처리방침을 연 뒤 오프라인이면 게임 대신 방침이 뜰 수 있었다 — 2026-10-29 수정)
+    if (res.ok) {
+      const path = new URL(req.url).pathname;
+      const isGame = req.mode === 'navigate' && (path.endsWith('/') || path.endsWith('/index.html'));
+      cache.put(isGame ? './index.html' : req, res.clone());
+    }
     return res;
   } catch (err) {
     const hit = req.mode === 'navigate'

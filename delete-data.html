@@ -37,10 +37,11 @@ a{color:var(--accent)}
 (function(){
   var fromGame=false;
   try{ fromGame = !!document.referrer && new URL(document.referrer).origin===location.origin; }catch(e){}
-  if(!fromGame && !window.SharkAds) return;
+  var q=/[?&]from=game\b/.test(location.search);
+  if(!fromGame && !q && !window.SharkAds) return;
   document.getElementById('backBar').style.display='block';
   document.getElementById('backLink').addEventListener('click',function(e){
-    if(fromGame && history.length>1){ e.preventDefault(); history.back(); }
+    if((fromGame||q) && history.length>1){ e.preventDefault(); history.back(); }
   });
 })();
 </script>

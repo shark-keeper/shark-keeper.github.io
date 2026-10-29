@@ -20,9 +20,24 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
 th,td{border:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
 th{background:#e8f4fc;font-weight:600}
 a{color:var(--accent)}
+.back{display:none;position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:2px solid var(--line);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
+.back a{display:inline-block;font-weight:700;text-decoration:none;color:var(--ink);font-size:16px;padding:4px 2px}
 </style>
 </head>
 <body>
+<nav class="back" id="backBar"><a href="./?source=app" id="backLink">← 게임으로 돌아가기</a></nav>
+<script>
+/* 게임(앱 WebView)에서 들어왔을 때만 위쪽에 '돌아가기'를 보여 준다 — iOS 앱에는 뒤로 가기 버튼이 없어서(2026-10-29) */
+(function(){
+  var fromGame=false;
+  try{ fromGame = !!document.referrer && new URL(document.referrer).origin===location.origin; }catch(e){}
+  if(!fromGame && !window.SharkAds) return;
+  document.getElementById('backBar').style.display='block';
+  document.getElementById('backLink').addEventListener('click',function(e){
+    if(fromGame && history.length>1){ e.preventDefault(); history.back(); }
+  });
+})();
+</script>
 <main>
 <h1>상어집사 개인정보처리방침</h1>
 <p class="date">운영: 오상플레이 · 시행일: 2026년 10월 29일</p>

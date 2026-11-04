@@ -1,0 +1,132 @@
+# Android 앱 번들(AAB)을 업로드 키로 서명해 빌드하고, 실행 결과(Artifacts)로 내려받게 한다.
+# 실행: GitHub 저장소 → Actions → "Android AAB 빌드" → Run workflow (수동 실행만)
+# 받은 app-release.aab를 Play Console(테스트 트랙/프로덕션)에 직접 올린다.
+# 필요한 Secrets(저장소 Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64    업로드 키 저장소(.jks)를 base64로 바꾼 문자열(한 줄)
+#   ANDROID_KEYSTORE_PASSWORD  키 저장소 비밀번호
+#   ANDROID_KEY_ALIAS          키 별칭 (upload)
+#   ANDROID_KEY_PASSWORD       키 비밀번호 (PKCS12 저장소라 키 저장소 비밀번호와 같다)
+# 키 원본(.jks)과 비밀번호는 저장소 밖에 따로 백업한다. 잃어버리면 Play Console에서 업로드 키 재설정을 요청해야 한다.
+name: Android AAB 빌드
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: '버전 코드 (비우면 실행 번호를 쓴다. Play에 올린 적 있는 번호보다 커야 한다)'
+        required: false
+        default: ''
+
+concurrency:
+  group: android-aab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: flutter_app
+    env:
+      BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'   # 사용자 PC에서 첫 빌드를 확인한 버전, iOS 워크플로와 같게
+          channel: stable
+          cache: true
+
+      - name: 업로드 키 준비와 확인
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          for v in KS_B64 KS_PASS KEY_ALIAS KEY_PASS; do [ -z "${!v}" ] && missing="$missing $v"; done
+          if [ -n "$missing" ]; then
+            echo "::error title=Secrets 비어 있음::다음 값이 없습니다:$missing (ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD)"
+            exit 1
+          fi
+          ks="$RUNNER_TEMP/upload-keystore.jks"
+          if ! printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 --decode > "$ks" 2>/dev/null || [ ! -s "$ks" ]; then
+            echo "::error title=키 저장소 형식::ANDROID_KEYSTORE_BASE64를 base64로 풀지 못했습니다. 받은 파일의 한 줄 전체를 그대로 넣어 주세요."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$ks" -storepass "$KS_PASS" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error title=키 확인 실패::키 저장소 비밀번호가 틀렸거나 별칭 '$KEY_ALIAS'가 없습니다."
+            exit 1
+          fi
+          fp=$(keytool -list -v -keystore "$ks" -storepass "$KS_PASS" -alias "$KEY_ALIAS" 2>/dev/null | grep -m1 'SHA256:' | sed 's/.*SHA256: //')
+          echo "::notice title=업로드 키 확인 완료::별칭 $KEY_ALIAS, SHA-256 지문 $fp"
+          # build.gradle.kts는 android/key.properties를 읽어 릴리스 서명에 쓴다(storeFile은 app 모듈 기준 상대 경로 또는 절대 경로)
+          {
+            echo "storePassword=$KS_PASS"
+            echo "keyPassword=$KEY_PASS"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=$ks"
+          } > android/key.properties
+          echo "버전 코드: $BUILD_NUMBER"
+
+      - name: 패키지 받기와 테스트
+        run: |
+          flutter pub get
+          flutter test
+
+      - name: AAB 빌드
+        run: |
+          flutter --version
+          flutter build appbundle --release --build-number="$BUILD_NUMBER" 2>&1 | tee "$RUNNER_TEMP/build.log"
+          test "${PIPESTATUS[0]}" = 0 || { echo "::error title=AAB 빌드 실패::$(grep -E 'error|FAILURE|What went wrong' -A3 "$RUNNER_TEMP/build.log" | tail -n 30 | sed 's/%/%25/g' | awk '{printf "%s%%0A",$0}')"; exit 1; }
+
+      - name: 서명·버전·타깃 SDK 확인
+        run: |
+          aab=build/app/outputs/bundle/release/app-release.aab
+          ls -l "$aab"
+          # 업로드 키로 서명됐는지(디버그 키면 Play가 거절)
+          cert=$(keytool -printcert -jarfile "$aab" 2>/dev/null)
+          echo "$cert" | head -n 12
+          if echo "$cert" | grep -q 'CN=Android Debug'; then
+            echo "::error title=디버그 키로 서명됨::key.properties가 적용되지 않았습니다."; exit 1
+          fi
+          # 매니페스트에서 버전·타깃 SDK 읽기
+          curl -sSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
+          man=$(java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle "$aab")
+          vc=$(echo "$man" | grep -o 'android:versionCode="[0-9]*"' | head -1)
+          vn=$(echo "$man" | grep -o 'android:versionName="[^"]*"' | head -1)
+          tsdk=$(echo "$man" | grep -o 'android:targetSdkVersion="[0-9]*"' | head -1 | grep -o '[0-9]*')
+          msdk=$(echo "$man" | grep -o 'android:minSdkVersion="[0-9]*"' | head -1 | grep -o '[0-9]*')
+          pkg=$(echo "$man" | grep -o 'package="[^"]*"' | head -1)
+          echo "::notice title=AAB 정보::$pkg $vn $vc minSdk=$msdk targetSdk=$tsdk"
+          if [ -n "$tsdk" ] && [ "$tsdk" -lt 36 ]; then
+            echo "::warning title=타깃 SDK 낮음::targetSdk=$tsdk — 2026-08-31부터 새 앱은 36 이상이어야 Play에 올릴 수 있습니다."
+          fi
+          {
+            echo "### AAB 빌드 완료"
+            echo "- $pkg · $vn · $vc"
+            echo "- minSdk $msdk · targetSdk $tsdk"
+            echo "- 아래 Artifacts의 **sharkkeeper-aab**를 내려받아 압축을 풀면 \`app-release.aab\`가 있습니다."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sharkkeeper-aab
+          path: flutter_app/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: 키 파일 지우기
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks" android/key.properties

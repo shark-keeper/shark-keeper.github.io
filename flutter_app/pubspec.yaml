@@ -3,7 +3,7 @@ description: "상어집사 — 배포 중인 웹게임을 감싸는 앱 (Flutter
 publish_to: 'none'
 
 # 스토어에 올릴 때마다 + 뒤의 빌드 번호를 1씩 올린다 (예: 1.0.1+2)
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

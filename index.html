@@ -276,9 +276,9 @@ h2{font-family:var(--f-display);font-weight:700;font-size:22px;margin:18px 0 6px
   <div class="sheet">
     <div id="webShark"></div>
     <h3 id="webTitle">앱에서 만나요!</h3>
-    <p>상어 키우기는 이제 <b>앱에서만</b> 할 수 있어요.<br>Google Play와 App Store에 곧 나와요.</p>
+    <p>상어 키우기는 <b>앱에서</b> 할 수 있어요.<br>Google Play와 App Store에서 받아 주세요.</p>
     <div class="stores" id="webStores"></div>
-    <p class="note" style="margin:14px 0 0">앱이 나오면 이 화면의 버튼으로 바로 설치할 수 있어요.</p>
+    <p class="note" style="margin:14px 0 0">버튼을 누르면 스토어로 이동해요.</p>
   </div>
 </div>
 
@@ -304,7 +304,10 @@ const DEFAULTS = {
    앱(Flutter WebView)은 SharkAds 통로가 있거나 주소에 ?source=app이 붙어 있다.
    ※ 화면 쪽 차단이라 주소에 ?source=app을 직접 붙이면 브라우저에서도 열린다(개발·테스트용으로도 이 방법을 쓴다). */
 const IS_APP = typeof window.SharkAds!=='undefined' || new URLSearchParams(location.search).get('source')==='app';
-const STORE_URLS = { android: '', ios: '' };   // 출시하면 스토어 주소를 넣는다 (비어 있으면 '준비 중')
+const STORE_URLS = {   // 스토어 주소 (2026-11-09 출시). 비어 있으면 '준비 중'으로 보인다
+  android: 'https://play.google.com/store/apps/details?id=com.ohsang.play.sharkkeeper',
+  ios: 'https://apps.apple.com/kr/app/%EC%83%81%EC%96%B4%EC%A7%91%EC%82%AC/id6827961390',
+};
 const API_BASE = 'https://shark-keeper-api.shark-keeper.workers.dev';
 const CFG_KEY = 'shark-keeper-cfg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1073,7 +1076,10 @@ function showNetError(){
 bubbles();
 function showWebOnly(){
   $('webShark').innerHTML=sharkSVG(1,'ok',168);
-  $('webStores').innerHTML=[['android','Google Play'],['ios','App Store']].map(([k,n])=>STORE_URLS[k]
+  // 아이폰·아이패드면 App Store를, 그 밖에는 Google Play를 먼저 보여 준다
+  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const list=[['android','Google Play'],['ios','App Store']]; if(ios) list.reverse();
+  $('webStores').innerHTML=list.map(([k,n])=>STORE_URLS[k]
     ? `<a href="${STORE_URLS[k]}" target="_blank" rel="noopener">${n}에서 받기</a>` : `<span>${n} · 준비 중</span>`).join('');
   $('ovWeb').hidden=false;
 }
